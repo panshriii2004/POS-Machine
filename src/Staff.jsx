@@ -1,38 +1,48 @@
 import React, { useState, useRef } from 'react';
 
-export default function Staff({ staffList, setStaffList }) {
+export default function Staff({ staffList, setStaffList, isSidebarHidden, showSidebar }) {
   const [search, setSearch] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // --- Modals State ---
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showIndividualAttendance, setShowIndividualAttendance] = useState(false);
-  const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
+  const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); 
 
-  // --- Form State ---
   const [name, setName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [phone, setPhone] = useState('');
   const [photo, setPhoto] = useState(null); 
 
-  // --- Ledger & Attendance Form State ---
   const [ledgerAmount, setLedgerAmount] = useState('');
   const [ledgerNote, setLedgerNote] = useState('');
   const [attendanceNote, setAttendanceNote] = useState('');
 
   const fileInputRef = useRef(null);
+  
+  // 🔥 NEW: Ref for the right panel to handle scrolling
+  const rightPanelRef = useRef(null);
+  
   const todayDate = new Date().toISOString().split('T')[0]; 
 
   const selectedStaff = staffList.find(s => s.id === selectedStaffId);
   const filteredStaff = staffList.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.jobTitle.toLowerCase().includes(search.toLowerCase()));
 
-  // --- HELPER: Safely get attendance (handles old string format & new object format) ---
+  // 🔥 NEW: Scroll function that triggers on mobile
+  const scrollToRightPanel = () => {
+    // Only scroll if we are on a smaller screen (where columns are stacked)
+    if (window.innerWidth < 768 && rightPanelRef.current) {
+      setTimeout(() => {
+        rightPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  };
+
   const getAttendanceRecord = (staffMember, dateString) => {
     if (!staffMember.attendance || !staffMember.attendance[dateString]) return { status: 'Not Marked', note: '' };
     const record = staffMember.attendance[dateString];
-    if (typeof record === 'string') return { status: record, note: '' }; // Backwards compatibility
-    return record; // Returns { status: '...', note: '...' }
+    if (typeof record === 'string') return { status: record, note: '' }; 
+    return record; 
   };
 
   const handleImageUpload = (e) => {
@@ -69,7 +79,6 @@ export default function Staff({ staffList, setStaffList }) {
     }
   };
 
-  // 🔥 UPDATED: Now saves the status AND the note
   const handleMarkAttendance = (status) => {
     if ((status === 'Absent' || status === 'Half Day') && !attendanceNote.trim()) {
       if (!window.confirm(`You haven't added a reason/note for marking them ${status}. Continue anyway?`)) return;
@@ -117,7 +126,6 @@ export default function Staff({ staffList, setStaffList }) {
     setLedgerNote('');
   };
 
-  // --- CALENDAR GENERATORS ---
   const getDaysInMonth = (yearMonthStr) => {
     const [year, month] = yearMonthStr.split('-');
     return new Date(year, month, 0).getDate();
@@ -136,30 +144,40 @@ export default function Staff({ staffList, setStaffList }) {
   const currentMonthDates = generateMonthDates(reportMonth);
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-slate-50 font-sans p-6 gap-6 overflow-hidden relative">
+    <div className="flex flex-col md:flex-row h-full bg-slate-50 font-sans p-6 gap-6 overflow-y-auto relative">
       
-      {/* ========================================= */}
-      {/* 📅 MODAL: MASTER ATTENDANCE SHEET          */}
-      {/* ========================================= */}
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
       {showAllAttendance && (
         <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden relative animate-fade-in-down">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800">Master Attendance Sheet</h2>
-                <p className="text-slate-500 text-sm mt-1">View all staff attendance for the selected month</p>
+            
+            {/* 🔥 FIXED: Responsive Header for Calendar */}
+            <div className="p-4 md:p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 shrink-0 relative gap-4">
+              <div className="pr-10">
+                <h2 className="text-xl md:text-2xl font-bold text-slate-800">Master Attendance</h2>
+                <p className="text-slate-500 text-xs md:text-sm mt-1">View all staff attendance for the selected month</p>
               </div>
-              <div className="flex items-center gap-4">
-                <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" />
-                <button onClick={() => setShowAllAttendance(false)} className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-500 hover:text-white hover:border-red-500 rounded-full text-slate-600 font-bold transition-colors shadow-sm">✕</button>
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className="p-2 w-full sm:w-auto border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" />
               </div>
+              {/* Close button is now strictly fixed to the top right to avoid being pushed off screen */}
+              <button onClick={() => setShowAllAttendance(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-500 hover:text-white hover:border-red-500 rounded-full text-slate-600 font-bold transition-colors shadow-sm">✕</button>
             </div>
 
-            <div className="flex-1 overflow-auto p-6 bg-white">
+            <div className="flex-1 overflow-auto p-4 md:p-6 bg-white">
               <table className="w-full border-collapse text-sm text-center">
                 <thead className="sticky top-0 bg-white shadow-sm ring-1 ring-slate-200 z-10">
                   <tr>
-                    <th className="p-3 text-left font-bold text-slate-700 uppercase tracking-wider bg-slate-100 min-w-[150px] sticky left-0 z-20 shadow-[1px_0_0_#e2e8f0]">Staff Name</th>
+                    <th className="p-3 text-left font-bold text-slate-700 uppercase tracking-wider bg-slate-100 min-w-[120px] sticky left-0 z-20 shadow-[1px_0_0_#e2e8f0]">Staff Name</th>
                     {currentMonthDates.map(date => (
                       <th key={date} className="p-2 font-semibold text-slate-500 border border-slate-200 min-w-[40px]">
                         {date.split('-')[2]}
@@ -174,7 +192,7 @@ export default function Staff({ staffList, setStaffList }) {
                     staffList.map(staff => (
                       <tr key={staff.id} className="hover:bg-slate-50">
                         <td className="p-3 text-left font-bold text-slate-800 bg-white sticky left-0 z-10 shadow-[1px_0_0_#e2e8f0]">
-                          <div className="truncate w-32" title={staff.name}>{staff.name}</div>
+                          <div className="truncate w-24 md:w-32" title={staff.name}>{staff.name}</div>
                         </td>
                         {currentMonthDates.map(date => {
                           const record = getAttendanceRecord(staff, date);
@@ -198,7 +216,7 @@ export default function Staff({ staffList, setStaffList }) {
               </table>
             </div>
             
-            <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 flex justify-center gap-6 text-sm font-medium text-slate-600">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 shrink-0 flex justify-center gap-4 md:gap-6 text-xs md:text-sm font-medium text-slate-600">
               <span className="flex items-center gap-2"><span className="w-4 h-4 bg-emerald-100 border border-emerald-300 rounded flex items-center justify-center text-[10px] text-emerald-700">P</span> = Present</span>
               <span className="flex items-center gap-2"><span className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded flex items-center justify-center text-[10px] text-yellow-700">H</span> = Half Day</span>
               <span className="flex items-center gap-2"><span className="w-4 h-4 bg-red-100 border border-red-300 rounded flex items-center justify-center text-[10px] text-red-700">A</span> = Absent</span>
@@ -207,20 +225,16 @@ export default function Staff({ staffList, setStaffList }) {
         </div>
       )}
 
-      {/* ========================================= */}
-      {/* 📅 MODAL: INDIVIDUAL ATTENDANCE REPORT     */}
-      {/* ========================================= */}
       {showIndividualAttendance && selectedStaff && (
         <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-down">
             <button onClick={() => setShowIndividualAttendance(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-red-500 hover:text-white rounded-full text-slate-600 font-bold transition-colors">✕</button>
             
-            <div className="shrink-0 mb-4 border-b border-slate-100 pb-4">
-              <h2 className="text-2xl font-bold text-slate-800">{selectedStaff.name}'s Attendance</h2>
-              <div className="flex items-center justify-between mt-3">
+            <div className="shrink-0 mb-4 border-b border-slate-100 pb-4 pr-6">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-800">{selectedStaff.name}'s Attendance</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 gap-3">
                 <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 text-sm" />
                 
-                {/* Calculate Summary */}
                 <div className="flex gap-2 text-xs font-bold">
                   <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">P: {currentMonthDates.filter(d => getAttendanceRecord(selectedStaff, d).status === 'Present').length}</span>
                   <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded">H: {currentMonthDates.filter(d => getAttendanceRecord(selectedStaff, d).status === 'Half Day').length}</span>
@@ -230,9 +244,9 @@ export default function Staff({ staffList, setStaffList }) {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2">
-              {currentMonthDates.slice().reverse().map(date => { // Show newest days first
+              {currentMonthDates.slice().reverse().map(date => { 
                 const record = getAttendanceRecord(selectedStaff, date);
-                if (record.status === 'Not Marked') return null; // Hide unmarked days to keep it clean
+                if (record.status === 'Not Marked') return null; 
 
                 let bgClass = "bg-slate-50 border-slate-200";
                 if (record.status === 'Present') bgClass = "bg-emerald-50 border-emerald-200 text-emerald-800";
@@ -261,15 +275,22 @@ export default function Staff({ staffList, setStaffList }) {
         </div>
       )}
 
-      {/* LEFT COLUMN: STAFF DIRECTORY */}
-      <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full overflow-hidden">
+      {/* LEFT COLUMN */}
+      <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full overflow-hidden shrink-0 mt-12 md:mt-0">
         <div className="flex justify-between items-center mb-4 shrink-0">
-          <h2 className="text-2xl font-bold text-slate-800">HR Portal</h2>
+          <h2 className={`text-xl md:text-2xl font-bold text-slate-800 ${isSidebarHidden ? 'md:ml-12' : ''}`}>HR Portal</h2>
           <div className="flex gap-2">
             <button onClick={() => setShowAllAttendance(true)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 text-sm rounded-lg transition-colors" title="Master Attendance Sheet">
               📅
             </button>
-            <button onClick={() => { setShowAddForm(true); setSelectedStaffId(null); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 text-sm rounded-lg transition-colors">
+            <button 
+              onClick={() => { 
+                setShowAddForm(true); 
+                setSelectedStaffId(null); 
+                scrollToRightPanel(); // 🔥 Trigger Scroll
+              }} 
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 text-sm rounded-lg transition-colors"
+            >
               + Add
             </button>
           </div>
@@ -286,7 +307,17 @@ export default function Staff({ staffList, setStaffList }) {
             return (
               <div 
                 key={staff.id} 
-                onClick={() => { setSelectedStaffId(staff.id); setShowAddForm(false); }}
+                onClick={() => { 
+                  setSelectedStaffId(staff.id); 
+                  setShowAddForm(false); 
+                  scrollToRightPanel(); // 🔥 Trigger Scroll
+                }}
+                // Works for double click or single click to be safe
+                onDoubleClick={() => { 
+                  setSelectedStaffId(staff.id); 
+                  setShowAddForm(false); 
+                  scrollToRightPanel(); 
+                }}
                 className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${selectedStaffId === staff.id ? 'bg-indigo-50 border-indigo-400 shadow-sm' : 'bg-white border-slate-100 hover:border-indigo-300 hover:shadow-sm'}`}
               >
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 border border-slate-300 shrink-0 flex items-center justify-center">
@@ -307,10 +338,9 @@ export default function Staff({ staffList, setStaffList }) {
         </div>
       </div>
 
-      {/* RIGHT COLUMN: HR DASHBOARD */}
-      <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden relative">
+      {/* RIGHT COLUMN */}
+      <div ref={rightPanelRef} className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden shrink-0 md:mt-0 relative">
         
-        {/* ADD EMPLOYEE FORM */}
         {showAddForm && (
           <div className="p-6 overflow-y-auto h-full animate-fade-in-down">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
@@ -335,10 +365,10 @@ export default function Staff({ staffList, setStaffList }) {
                 <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Job Title / Role</label>
-                  <input type="text" value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Cleaner, Driver, Cashier" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50" />
+                  <input type="text" value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Cleaner, Driver" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number</label>
@@ -354,7 +384,7 @@ export default function Staff({ staffList, setStaffList }) {
         )}
 
         {!showAddForm && !selectedStaff && (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
             <span className="text-6xl mb-4">👔</span>
             <p className="text-lg font-medium">Select an employee from the list</p>
           </div>
@@ -367,12 +397,12 @@ export default function Staff({ staffList, setStaffList }) {
                 Remove Profile
               </button>
               
-              <div className="flex items-center gap-5">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-white border-4 border-white shadow-md shrink-0 flex items-center justify-center">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-5 mt-6 sm:mt-0">
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-white border-4 border-white shadow-md shrink-0 flex items-center justify-center">
                   {selectedStaff.photo ? <img src={selectedStaff.photo} alt="profile" className="w-full h-full object-cover" /> : <span className="text-slate-400 font-bold text-3xl">{selectedStaff.name.charAt(0)}</span>}
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-800">{selectedStaff.name}</h2>
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-800">{selectedStaff.name}</h2>
                   <p className="bg-slate-200 inline-block text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide mt-1">
                     {selectedStaff.jobTitle}
                   </p>
@@ -384,22 +414,19 @@ export default function Staff({ staffList, setStaffList }) {
                       </a>
                     )}
                     
-                    {/* 🔥 NEW: Monthly Attendance Button */}
                     <button onClick={() => setShowIndividualAttendance(true)} className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-full shadow-sm transition-colors">
-                      📅 Check Monthly Attendance
+                      📅 Monthly Attendance
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 min-h-[400px]">
               
-              {/* 🔥 UPDATED ATTENDANCE WITH NOTE SECTION */}
-              <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+              <section className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm">
                 <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Today's Attendance ({todayDate})</h3>
                 
-                {/* Note Input */}
                 <input 
                   type="text" 
                   placeholder="Add a note (e.g. 'Arrived 2 hours late' or 'Sick leave')..." 
@@ -408,7 +435,7 @@ export default function Staff({ staffList, setStaffList }) {
                   className="w-full mb-3 p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
                 />
 
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button onClick={() => handleMarkAttendance('Present')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Present' ? 'bg-emerald-500 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'}`}>✅ Present</button>
                   <button onClick={() => handleMarkAttendance('Half Day')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Half Day' ? 'bg-yellow-500 text-white border-yellow-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-yellow-50'}`}>⏱️ Half Day</button>
                   <button onClick={() => handleMarkAttendance('Absent')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Absent' ? 'bg-red-500 text-white border-red-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50'}`}>❌ Absent</button>
@@ -420,13 +447,12 @@ export default function Staff({ staffList, setStaffList }) {
                 )}
               </section>
 
-              {/* FINANCIAL LEDGER */}
-              <section className="bg-slate-100 p-5 rounded-2xl border border-slate-200">
-                <div className="flex justify-between items-center mb-4">
+              <section className="bg-slate-100 p-4 md:p-5 rounded-2xl border border-slate-200">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                   <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Salary & Advance Ledger</h3>
-                  <div className={`text-right px-4 py-2 rounded-xl bg-white border shadow-sm ${selectedStaff.ledgerBalance > 0 ? 'border-orange-300' : selectedStaff.ledgerBalance < 0 ? 'border-emerald-300' : 'border-slate-200'}`}>
+                  <div className={`text-right px-4 py-2 rounded-xl bg-white border shadow-sm w-full sm:w-auto ${selectedStaff.ledgerBalance > 0 ? 'border-orange-300' : selectedStaff.ledgerBalance < 0 ? 'border-emerald-300' : 'border-slate-200'}`}>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Net Balance</p>
-                    <p className={`text-xl font-bold ${selectedStaff.ledgerBalance > 0 ? 'text-orange-600' : selectedStaff.ledgerBalance < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>
+                    <p className={`text-lg md:text-xl font-bold ${selectedStaff.ledgerBalance > 0 ? 'text-orange-600' : selectedStaff.ledgerBalance < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>
                       {selectedStaff.ledgerBalance > 0 ? `Owes Us ₹${selectedStaff.ledgerBalance}` : selectedStaff.ledgerBalance < 0 ? `Pending Pay ₹${Math.abs(selectedStaff.ledgerBalance)}` : '₹0.00'}
                     </p>
                   </div>

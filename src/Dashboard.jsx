@@ -33,10 +33,9 @@ const CameraScanner = ({ onScan, onClose }) => {
 };
 
 export default function Dashboard({ 
-  currentUser, 
-  products, setProducts, billHistory = [], setBillHistory, storeDetails, printerSize,
-  carts, setCarts, activeCartId, setActiveCartId,
-  customers, setCustomers 
+  currentUser, products, setProducts, billHistory = [], setBillHistory, storeDetails, printerSize,
+  carts, setCarts, activeCartId, setActiveCartId, customers, setCustomers,
+  isSidebarHidden, showSidebar // 🔥 The new props!
 }) {
   const [search, setSearch] = useState('');
   const [scanInput, setScanInput] = useState('');
@@ -84,7 +83,6 @@ export default function Dashboard({
     ? customers.filter(c => c.phone && c.phone !== 'N/A' && c.phone.includes(activeCart.customerPhone))
     : [];
 
-  // 🔥 THE FIX: Combine updates into one single action to prevent Firebase state overwriting!
   const handleSelectCustomer = (customer) => {
     setCarts(prevCarts => {
       const targetId = prevCarts.find(c => c.id === activeCartId) ? activeCartId : prevCarts[0].id;
@@ -376,20 +374,33 @@ export default function Dashboard({
   return (
     <div className="flex flex-col h-full bg-slate-50 font-sans relative overflow-hidden">
       
-      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto shrink-0 shadow-sm z-10">
+      {/* 🔥 THE FIXED DASHBOARD BUTTON: Always stays in the top-left over everything */}
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="fixed top-3 left-3 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      {/* Adjusted padding to respect the new custom fixed button on Dashboard */}
+      <div className={`bg-white border-b border-slate-200 pr-4 py-3 flex items-center gap-2 overflow-x-auto shrink-0 shadow-sm z-10 min-h-[50px] ${isSidebarHidden ? 'pl-16 md:pl-20' : 'pl-4'}`}>
         {carts.map(cart => (
-          <div key={cart.id} onClick={() => setActiveCartId(cart.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-bold text-sm cursor-pointer transition-all border-b-2 ${activeCartId === cart.id ? 'bg-blue-50 text-blue-700 border-blue-600' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}>
+          <div key={cart.id} onClick={() => setActiveCartId(cart.id)} className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-bold text-sm cursor-pointer transition-all border-b-2 whitespace-nowrap ${activeCartId === cart.id ? 'bg-blue-50 text-blue-700 border-blue-600' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}>
             <span>{cart.title}</span>
             <span className="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full">{cart.invoice.length}</span>
             <button onClick={(e) => { e.stopPropagation(); closeCart(cart.id); }} className="ml-1 text-slate-400 hover:text-red-500 font-bold">✕</button>
           </div>
         ))}
-        <button onClick={addNewCart} className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors ml-2">
+        <button onClick={addNewCart} className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors ml-2 whitespace-nowrap">
           + New Cart
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row flex-1 p-4 gap-6 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 p-2 pt-3 md:px-4 md:pb-4 md:pt-3 gap-3 overflow-y-auto lg:overflow-hidden relative">
+        
         {isCameraOpen && <CameraScanner onScan={(code) => { processScannedCode(code); setIsCameraOpen(false); }} onClose={() => setIsCameraOpen(false)} />}
 
         {editItemModal && (
@@ -470,16 +481,16 @@ export default function Dashboard({
           </div>
         )}
 
-        <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full overflow-hidden">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 shrink-0">
-            <h2 className="text-2xl font-bold text-slate-800">Products</h2>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 shadow-sm">
+        <div className="w-full lg:w-7/12 xl:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col min-h-[50vh] lg:h-full shrink-0 lg:shrink">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 shrink-0">
+            <h2 className="text-2xl font-bold text-slate-800 hidden md:block">Products</h2>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-1 items-center gap-2 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 shadow-sm min-w-[150px]">
                 <span className="text-emerald-600 font-bold">⌨️ USB:</span>
                 <input 
                   ref={scannerInputRef} 
                   type="text" 
-                  className="bg-white border border-emerald-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 w-32 md:w-48" 
+                  className="bg-white border border-emerald-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full" 
                   placeholder="Scan here..." 
                   value={scanInput} 
                   onChange={(e) => setScanInput(e.target.value)} 
@@ -487,22 +498,24 @@ export default function Dashboard({
                   autoFocus 
                 />
               </div>
-              <button onClick={() => setIsCameraOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 shadow-sm transition-colors h-[42px]">📱 Camera</button>
+              <button onClick={() => setIsCameraOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 shadow-sm transition-colors h-[42px] whitespace-nowrap">
+                📱 Camera
+              </button>
             </div>
           </div>
           
           <div className="relative mb-4 shrink-0">
-            <input type="text" className="w-full p-4 pl-4 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" placeholder="Search products by name..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input type="text" className="w-full p-3 md:p-4 pl-4 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" placeholder="Search products by name..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
           {filteredProducts.length === 0 && search && (
-            <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100 flex justify-between items-center shrink-0">
-              <span className="text-blue-800">No product found for "<strong>{search}</strong>"</span>
-              <button onClick={createNewProduct} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">+ Create & Add</button>
+            <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-3">
+              <span className="text-blue-800 text-center sm:text-left">No product found for "<strong>{search}</strong>"</span>
+              <button onClick={createNewProduct} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition w-full sm:w-auto">+ Create & Add</button>
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2 pb-4 flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto pr-1 pb-4 flex-1">
             {filteredProducts.map((product) => {
               let cardBg = "bg-white border-slate-200 hover:border-blue-500";
               if (product.stock <= 0) cardBg = "bg-red-100 border-red-300 opacity-70 cursor-not-allowed";
@@ -515,12 +528,12 @@ export default function Dashboard({
                   className={`p-3 border rounded-xl shadow-sm transition-all group flex flex-col justify-between ${cardBg}`}
                 >
                   <div>
-                    <h3 className={`font-semibold line-clamp-1 ${product.stock <= 0 ? 'text-red-700' : 'text-slate-800 group-hover:text-blue-600'}`}>
+                    <h3 className={`font-semibold text-sm md:text-base line-clamp-2 leading-tight ${product.stock <= 0 ? 'text-red-700' : 'text-slate-800 group-hover:text-blue-600'}`}>
                       {product.name}
                     </h3>
-                    <div className="flex justify-between items-center mb-1 mt-1">
+                    <div className="flex flex-col xl:flex-row xl:justify-between xl:items-center mt-2 gap-1">
                       <span className="text-base font-bold text-slate-900">₹{product.price.toFixed(2)}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md 
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-max
                         ${product.stock <= 0 ? 'bg-red-600 text-white' : 
                           product.stock <= 5 ? 'bg-yellow-600 text-white' : 
                           'bg-slate-100 text-slate-500'}`}>
@@ -528,8 +541,8 @@ export default function Dashboard({
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-center bg-white p-1 rounded border border-slate-100 mt-auto opacity-70 group-hover:opacity-100 transition-opacity">
-                    <Barcode value={product.barcode} height={30} width={1.2} fontSize={12} background="transparent" />
+                  <div className="flex justify-center bg-white p-1 rounded border border-slate-100 mt-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                    <Barcode value={product.barcode} height={20} width={1.2} fontSize={10} background="transparent" margin={0} />
                   </div>
                 </div>
               );
@@ -537,43 +550,44 @@ export default function Dashboard({
           </div>
         </div>
 
-        <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full overflow-hidden">
+        <div className="w-full lg:w-5/12 xl:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col flex-1 lg:h-full shrink-0 lg:shrink">
           
-          <div className="flex-grow overflow-y-auto pr-2 mb-4 space-y-4">
+          <div className="flex-grow overflow-y-auto pr-1 mb-4 space-y-3">
             {activeCart.invoice.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 min-h-[150px]">
                 <p>Your cart is empty.</p>
                 <p className="text-sm">Click products or scan to add.</p>
               </div>
             ) : (
               activeCart.invoice.map((item) => (
-                <div key={item.id} className="flex justify-between items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-800">{item.name}</p>
-                    <p className="text-xs text-slate-400 font-mono mb-1">{item.barcode}</p>
+                <div key={item.id} className="flex flex-col xl:flex-row justify-between items-start xl:items-center p-3 bg-slate-50 rounded-lg border border-slate-100 gap-2">
+                  <div className="flex-1 w-full break-words pr-2">
+                    <p className="font-semibold text-slate-800 text-sm">{item.name}</p>
+                    <p className="text-[10px] text-slate-400 font-mono mb-1">#{item.barcode}</p>
                     
                     <div className="flex flex-col items-start gap-1">
-                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
                         ₹{item.price.toFixed(2)} / each
-                        <button onClick={() => openEditModal(item)} className="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 transition-colors text-[10px] font-bold px-2 py-1 rounded" title="Edit Price & Discount">✏️ Edit</button>
+                        <button onClick={() => openEditModal(item)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white transition-colors text-[10px] font-bold px-2 py-0.5 rounded" title="Edit Price & Discount">✏️ Edit</button>
                       </div>
-                      
                       {item.basePrice > item.price && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
+                        <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
                           Discounted from ₹{item.basePrice.toFixed(2)}
                         </span>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-3 mt-3">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-full bg-white border shadow-sm flex items-center justify-center hover:bg-slate-100 text-slate-600 font-bold">-</button>
-                      <span className="font-semibold w-4 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-full bg-white border shadow-sm flex items-center justify-center hover:bg-slate-100 text-slate-600 font-bold">+</button>
-                    </div>
                   </div>
-                  <div className="flex flex-col items-end justify-between h-full">
-                    <button onClick={() => removeFromInvoice(item.id)} className="text-red-400 hover:text-red-600 text-sm font-medium mb-4">Remove</button>
-                    <p className="font-bold text-slate-900">₹{(item.price * item.quantity).toFixed(2)}</p>
+
+                  <div className="flex w-full xl:w-auto justify-between xl:flex-col items-center xl:items-end gap-2 xl:gap-0 mt-2 xl:mt-0">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 rounded-full bg-white border shadow-sm flex items-center justify-center hover:bg-slate-100 text-slate-600 font-bold">-</button>
+                      <span className="font-semibold w-4 text-center text-sm">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 rounded-full bg-white border shadow-sm flex items-center justify-center hover:bg-slate-100 text-slate-600 font-bold">+</button>
+                    </div>
+                    <div className="flex items-center gap-3 xl:mt-2">
+                      <p className="font-bold text-slate-900">₹{(item.price * item.quantity).toFixed(2)}</p>
+                      <button onClick={() => removeFromInvoice(item.id)} className="text-red-400 hover:text-red-600 text-xs font-bold bg-white px-2 py-1 rounded border shadow-sm">✕</button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -582,9 +596,7 @@ export default function Dashboard({
 
           <div className="pt-4 border-t border-slate-200 shrink-0">
             
-            {/* 🔥 UPDATED: Customer Inputs with FIXED Auto-Suggest */}
             <div className="mb-4 space-y-3">
-              
               <div className="relative">
                 <input 
                   ref={customerNameRef}
@@ -598,7 +610,7 @@ export default function Dashboard({
                   }} 
                   onFocus={() => setShowNameSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
-                  className={`w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${activeCart.paymentMethod === 'Credit' && !activeCart.customerName.trim() ? 'border-red-400 bg-red-50 placeholder-red-400' : 'border-slate-300'}`} 
+                  className={`w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${activeCart.paymentMethod === 'Credit' && !activeCart.customerName.trim() ? 'border-red-400 bg-red-50 placeholder-red-400' : 'border-slate-300'}`} 
                 />
                 
                 {showNameSuggestions && nameSuggestions.length > 0 && (
@@ -606,8 +618,8 @@ export default function Dashboard({
                     {nameSuggestions.map(c => (
                       <div 
                         key={c.id} 
-                        onMouseDown={(e) => { e.preventDefault(); handleSelectCustomer(c); }} // 🔥 FIX: Using onMouseDown!
-                        className="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectCustomer(c); }} 
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
                       >
                         <p className="font-bold text-slate-800 text-sm">{c.name}</p>
                         <p className="text-xs text-slate-500">{c.phone !== 'N/A' ? `📞 ${c.phone}` : 'No phone number'}</p>
@@ -630,7 +642,7 @@ export default function Dashboard({
                   }} 
                   onFocus={() => setShowPhoneSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 200)}
-                  className="w-full p-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                  className="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
                 />
 
                 {showPhoneSuggestions && phoneSuggestions.length > 0 && (
@@ -638,8 +650,8 @@ export default function Dashboard({
                     {phoneSuggestions.map(c => (
                       <div 
                         key={c.id} 
-                        onMouseDown={(e) => { e.preventDefault(); handleSelectCustomer(c); }} // 🔥 FIX: Using onMouseDown!
-                        className="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectCustomer(c); }} 
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0"
                       >
                         <p className="font-bold text-slate-800 text-sm">{c.name}</p>
                         <p className="text-xs text-slate-500">📞 {c.phone}</p>
@@ -650,7 +662,7 @@ export default function Dashboard({
               </div>
             </div>
 
-            <div className="space-y-3 mb-4">
+            <div className="space-y-3 mb-4 text-sm md:text-base">
               <div className="flex justify-between items-center text-slate-600 font-medium"><span>Subtotal:</span><span>₹{subtotal.toFixed(2)}</span></div>
               <div className="flex justify-between items-center text-slate-600">
                 <div className="flex items-center gap-2">
@@ -661,7 +673,7 @@ export default function Dashboard({
                     type="number" min="0" max="100" 
                     value={activeCart.discountPercent} 
                     onChange={(e) => updateCart('discountPercent', e.target.value)} 
-                    className="w-16 p-1 border border-slate-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" 
+                    className="w-16 p-1 border border-slate-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" 
                   />
                 </div>
                 <span className="text-red-500">-₹{discountAmount.toFixed(2)}</span>
@@ -675,34 +687,34 @@ export default function Dashboard({
                     type="number" min="0" 
                     value={activeCart.gstPercent} 
                     onChange={(e) => updateCart('gstPercent', e.target.value)} 
-                    className="w-16 p-1 border border-slate-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" 
+                    className="w-16 p-1 border border-slate-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0" 
                   />
                 </div>
                 <span className="text-emerald-600">+₹{gstAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-xl font-bold text-slate-900 pt-3 border-t border-slate-200"><span>Total:</span><span>₹{total.toFixed(2)}</span></div>
+              <div className="flex justify-between text-xl md:text-2xl font-bold text-slate-900 pt-3 border-t border-slate-200"><span>Total:</span><span>₹{total.toFixed(2)}</span></div>
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Payment Method</label>
+              <label className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase mb-2">Payment Method</label>
               <div className="flex gap-2">
                 {['Cash', 'Online', 'Credit'].map(method => (
-                  <button key={method} onClick={() => updateCart('paymentMethod', method)} className={`flex-1 py-2 text-sm font-bold rounded-lg border transition-all ${activeCart.paymentMethod === method ? method === 'Credit' ? 'bg-orange-500 text-white border-orange-500 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
-                    {method === 'Cash' ? '💵' : method === 'Online' ? '📱' : '💳'} {method}
+                  <button key={method} onClick={() => updateCart('paymentMethod', method)} className={`flex-1 py-2.5 text-xs md:text-sm font-bold rounded-lg border transition-all ${activeCart.paymentMethod === method ? method === 'Credit' ? 'bg-orange-500 text-white border-orange-500 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+                    {method === 'Cash' ? '💵' : method === 'Online' ? '📱' : '💳'} <span className="hidden sm:inline">{method}</span>
                   </button>
                 ))}
               </div>
             </div>
             
-            <div className="flex gap-2">
-              <button disabled={activeCart.invoice.length === 0} onClick={() => closeCart(activeCart.id)} className="flex-1 py-3 rounded-xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                🗑️ Cancel
+            <div className="flex gap-2 mt-2">
+              <button disabled={activeCart.invoice.length === 0} onClick={() => closeCart(activeCart.id)} className="w-16 flex items-center justify-center rounded-xl font-bold text-lg bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                🗑️
               </button>
               <button 
                 ref={reviewBtnRef}
                 disabled={activeCart.invoice.length === 0} 
                 onClick={handleReviewClick} 
-                className="flex-[2.5] py-3 rounded-xl font-bold text-lg transition-all shadow-md disabled:bg-slate-300 disabled:cursor-not-allowed disabled:shadow-none bg-emerald-500 hover:bg-emerald-600 text-white"
+                className="flex-1 py-3 md:py-4 rounded-xl font-bold text-lg transition-all shadow-md disabled:bg-slate-300 disabled:cursor-not-allowed disabled:shadow-none bg-emerald-500 hover:bg-emerald-600 text-white"
               >
                 Review & Complete
               </button>

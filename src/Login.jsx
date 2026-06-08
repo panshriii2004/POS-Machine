@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { auth } from './firebase'; // Import auth from your firebase.js
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
 export default function Login({ users, onLogin, onRegister }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -86,11 +88,11 @@ export default function Login({ users, onLogin, onRegister }) {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Username</label>
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}  autoComplete="current-password" className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
             </div>
             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md mt-4">
               Sign In

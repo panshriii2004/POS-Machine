@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Team({ users, setUsers, globalUsers }) {
+export default function Team({ users, setUsers, globalUsers, isSidebarHidden, showSidebar }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   
@@ -40,15 +40,25 @@ export default function Team({ users, setUsers, globalUsers }) {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto h-full">
-      <div className="flex justify-between items-end mb-8">
+    <div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto h-full relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 mt-12 sm:mt-0">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">POS Access Management</h1>
-          <p className="text-slate-500 mt-1">Control which employees can log into the Cash Register</p>
+          <h1 className={`text-3xl font-bold text-slate-800 ${isSidebarHidden ? 'sm:ml-12' : ''}`}>POS Access Management</h1>
+          <p className={`text-slate-500 mt-1 ${isSidebarHidden ? 'sm:ml-12' : ''}`}>Control which employees can log into the Cash Register</p>
         </div>
         <button 
           onClick={() => { setShowAddForm(!showAddForm); setError(''); }} 
-          className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-md"
+          className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-md mt-4 sm:mt-0"
         >
           {showAddForm ? '✕ Cancel' : '+ Add POS User'}
         </button>

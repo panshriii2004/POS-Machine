@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Customers({ currentUser, customers, setCustomers, billHistory, storeDetails }) {
+export default function Customers({ currentUser, customers, setCustomers, billHistory, storeDetails, isSidebarHidden, showSidebar }) {
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -41,9 +41,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     ? billHistory.filter(b => b.customerPhone === selectedCustomer.phone || (b.customerName === selectedCustomer.name && selectedCustomer.phone === 'N/A'))
     : [];
 
-  // 🔥 NEW: Delete Customer Profile Function
   const handleDeleteCustomer = () => {
-    // Extra safety check: Warn if they still owe money
     if (selectedCustomer.creditDue > 0) {
       if (!window.confirm(`⚠️ WARNING: ${selectedCustomer.name} still owes you ₹${selectedCustomer.creditDue.toFixed(2)}!\n\nAre you absolutely sure you want to delete their profile and wipe their debt?`)) {
         return;
@@ -56,7 +54,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
 
     const updatedCustomers = customers.filter(c => c.id !== selectedCustomer.id);
     setCustomers(updatedCustomers);
-    setSelectedCustomer(null); // Close the profile view
+    setSelectedCustomer(null); 
   };
 
   const handleSettleCredit = (e) => {
@@ -159,9 +157,19 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-slate-50 font-sans p-6 gap-6 overflow-hidden relative">
+    <div className="flex flex-col md:flex-row h-full bg-slate-50 font-sans p-6 gap-6 overflow-y-auto relative">
       
-      {/* ✏️ MODAL: EDIT PAYMENT RECORD */}
+      {/* MENU BUTTON */}
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
       {editingPayment && (
         <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm relative animate-fade-in-down">
@@ -195,7 +203,6 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
         </div>
       )}
 
-      {/* BILL DETAILS MODAL */}
       {viewingBill && (
         <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md relative max-h-[90vh] overflow-y-auto">
@@ -234,9 +241,9 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
         </div>
       )}
 
-      {/* LEFT COLUMN: Customer Directory */}
-      <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full overflow-hidden">
-        <h2 className="text-2xl font-bold text-slate-800 mb-4">Customer Directory</h2>
+      {/* LEFT COLUMN */}
+      <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full overflow-hidden shrink-0 mt-12 md:mt-0">
+        <h2 className={`text-2xl font-bold text-slate-800 mb-4 ${isSidebarHidden ? 'md:ml-12' : ''}`}>Customer Directory</h2>
         
         <div className="relative mb-4 shrink-0">
           <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
@@ -277,37 +284,34 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Customer Details & Credit Manager */}
-      <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden">
+      {/* RIGHT COLUMN */}
+      <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden shrink-0">
         {!selectedCustomer ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
             <span className="text-6xl mb-4">👤</span>
             <p className="text-lg font-medium">Select a customer to view details</p>
           </div>
         ) : (
           <div className="flex flex-col h-full overflow-hidden">
-            
-            {/* Header Profile */}
             <div className="p-6 border-b border-slate-100 bg-slate-50 shrink-0 relative">
               
-              {/* 🔥 NEW: Delete Customer Profile Button */}
               {currentUser?.role === 'admin' && (
                 <button 
                   onClick={handleDeleteCustomer} 
-                  className="absolute top-0 right-26 text-xs font-bold text-red-400 hover:text-red-600 border border-red-200 hover:bg-red-50 py-1 px-2 rounded transition-colors"
+                  className="absolute top-4 right-4 text-xs font-bold text-red-400 hover:text-red-600 border border-red-200 hover:bg-red-50 py-1 px-2 rounded transition-colors"
                 >
                   Delete Profile
                 </button>
               )}
 
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start mt-6 md:mt-0">
                 <div>
                   <h2 className="text-3xl font-bold text-slate-800">{selectedCustomer.name}</h2>
                   <p className="text-slate-500 mt-1">📞 {selectedCustomer.phone}</p>
                   <p className="text-xs text-slate-400 mt-1">Last Visit: {selectedCustomer.lastVisit}</p>
                 </div>
                 
-                <div className="bg-white border-2 border-slate-200 p-4 rounded-xl text-center shadow-sm min-w-[150px] mr-[90px] md:mr-0">
+                <div className="bg-white border-2 border-slate-200 p-4 rounded-xl text-center shadow-sm min-w-[150px]">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Credit Due</p>
                   <p className={`text-2xl font-bold ${selectedCustomer.creditDue > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                     ₹{selectedCustomer.creditDue.toFixed(2)}
@@ -315,7 +319,6 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                 </div>
               </div>
 
-              {/* Credit Settlement Action Bar */}
               {selectedCustomer.creditDue > 0 && (
                 <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl flex flex-col lg:flex-row gap-4 justify-between items-center">
                   <form onSubmit={handleSettleCredit} className="flex gap-2 w-full lg:w-auto">
@@ -339,10 +342,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
               )}
             </div>
 
-            {/* Scrollable History Section */}
-            <div className="p-6 flex-1 overflow-y-auto space-y-8">
-              
-              {/* Payment History Ledger */}
+            <div className="p-6 flex-1 overflow-y-auto space-y-8 min-h-[300px]">
               {selectedCustomer.paymentHistory && selectedCustomer.paymentHistory.length > 0 && (
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Received Payments</h3>
@@ -368,7 +368,6 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                 </div>
               )}
 
-              {/* Purchase History */}
               <div>
                 <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Recent Purchase History</h3>
                 {customerBills.length === 0 ? (

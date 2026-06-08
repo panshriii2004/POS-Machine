@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 
 export default function History({ 
-  currentUser, // <-- ADDED currentUser here
+  currentUser, 
   billHistory, setBillHistory, products, setProducts, 
-  setActiveTab, carts, setCarts, setActiveCartId 
+  setActiveTab, carts, setCarts, setActiveCartId,
+  isSidebarHidden, showSidebar
 }) {
   const [selectedBill, setSelectedBill] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,17 +78,13 @@ export default function History({
     setActiveTab('POS'); 
   };
 
-  // --- THE UPDATED FILTER LOGIC ---
   const filteredHistory = billHistory.filter(bill => {
-    // 1. Role-Based Access Check: Operators only see their own bills
     if (currentUser?.role === 'operator' && bill.cashierId !== currentUser.id) {
       return false; 
     }
 
-    // 2. Payment Filter Check
     const matchesPayment = paymentFilter === 'All' || bill.paymentMethod === paymentFilter;
     
-    // 3. Search Query Check
     const query = searchQuery.toLowerCase();
     const matchesSearch = 
       bill.id.toLowerCase().includes(query) ||
@@ -99,21 +96,26 @@ export default function History({
 
   if (selectedBill) {
     return (
-      <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto w-full">
-          
+      <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+        {isSidebarHidden && (
+          <button 
+            onClick={showSidebar}
+            className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+            title="Show Menu"
+          >
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+        )}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto w-full mt-12 md:mt-0">
           <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
             <div>
               <h2 className="text-2xl font-bold text-slate-800">Bill Details</h2>
               <p className="text-slate-500">Receipt #{selectedBill.id} • {selectedBill.date}</p>
-              
-              {/* Display who generated this bill */}
               {selectedBill.cashierName && (
                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
                   Cashier: {selectedBill.cashierName}
                 </p>
               )}
-              
               <p className="text-sm font-bold text-blue-600 mt-1 flex items-center gap-2">
                 Paid via: {selectedBill.paymentMethod || 'Cash'}
                 {selectedBill.paymentMethod === 'Credit' && (
@@ -192,12 +194,20 @@ export default function History({
   }
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        
+    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-12 md:mt-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
           <h2 className="text-2xl font-bold text-slate-800">📜 Bill History</h2>
-          
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
@@ -237,7 +247,6 @@ export default function History({
                     <tr key={bill.id} onClick={() => setSelectedBill(bill)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
                       <td className="p-4 font-mono font-bold text-blue-600 group-hover:underline">
                         #{bill.id}
-                        {/* If Admin is viewing, show who made the bill underneath the ID */}
                         {currentUser?.role === 'admin' && bill.cashierName && (
                           <div className="text-[10px] text-slate-400 uppercase tracking-wide mt-1">By: {bill.cashierName}</div>
                         )}

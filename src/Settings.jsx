@@ -1,14 +1,23 @@
 import React from 'react';
 
-export default function Settings({ storeDetails, setStoreDetails }) {
-  // Updates the store details instantly as you type
+export default function Settings({ storeDetails, setStoreDetails, isSidebarHidden, showSidebar }) {
   const handleChange = (e) => {
     setStoreDetails({ ...storeDetails, [e.target.name]: e.target.value });
   };
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto w-full">
+    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto w-full mt-12 md:mt-0">
         <h2 className="text-2xl font-bold text-slate-800 mb-6">⚙️ Store Settings</h2>
         
         <div className="space-y-5">

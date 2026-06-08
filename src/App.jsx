@@ -4,7 +4,7 @@ import { db } from './firebase';
 
 import Login from './Login';
 import Team from './Team';
-import Staff from './Staff'; // <-- Brought in your new HR file!
+import Staff from './Staff'; 
 import Dashboard from './Dashboard';
 import Inventory from './Inventory';
 import History from './History';
@@ -24,7 +24,6 @@ const defaultUsers = [
 
 const defaultCarts = [{ id: Date.now(), title: 'Cart 1', invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' }];
 
-// --- THE MAGIC CLOUD HOOK ---
 function useCloudState(collectionName, docName, defaultValue) {
   const [state, setState] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -54,22 +53,15 @@ function useCloudState(collectionName, docName, defaultValue) {
   return [state, setCloudState, isLoaded];
 }
 
-
-// ============================================================================
-// 1. THIS IS THE ISOLATED SHOP POS 
-// ============================================================================
 function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers }) {
   
   const dbFolder = currentUser.dbFolder || `shop_${currentUser.username}`;
-
-  // --- STORE SPECIFIC DATABASE CONNECTIONS ---
+  
   const [products, setProducts, productsLoaded] = useCloudState(dbFolder, "pos_products", initialProducts);
   const [billHistory, setBillHistory, billsLoaded] = useCloudState(dbFolder, "pos_bills", []);
   const [purchaseHistory, setPurchaseHistory, purchasesLoaded] = useCloudState(dbFolder, "pos_purchases", []);
   const [carts, setCarts, cartsLoaded] = useCloudState(dbFolder, "pos_carts", defaultCarts);
   const [localCustomers, setLocalCustomers, customersLoaded] = useCloudState(dbFolder, "pos_customers", []);
-  
-  // 🔥 SAFELY PLACED: The HR Database connection is now inside the logged-in area!
   const [localStaff, setLocalStaff, staffLoaded] = useCloudState(dbFolder, "pos_staff", []);
   
   const [localUsers, setLocalUsers, usersLoaded] = useCloudState(dbFolder, "pos_users", [
@@ -86,7 +78,12 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
   const [activeCartId, setActiveCartId] = useState(null);
   const [activeTab, setActiveTab] = useState('POS');
   const [printerSize, setPrinterSize] = useState('80mm');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  const [sidebarState, setSidebarState] = useState('full'); 
+
+  const handleSidebarDoubleClick = () => {
+    setSidebarState(prev => prev === 'hidden' ? 'full' : 'hidden');
+  };
 
   useEffect(() => {
     if (cartsLoaded && carts.length > 0 && !activeCartId) {
@@ -138,13 +135,28 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
   };
 
   return (
-    <div className="h-screen flex bg-slate-50 overflow-hidden font-sans">
-      <aside className={`bg-slate-900 text-white flex flex-col shadow-2xl z-20 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+    <div className="h-screen w-full flex bg-slate-50 font-sans relative overflow-hidden">
+      
+      <aside 
+        onDoubleClick={handleSidebarDoubleClick}
+        className={`bg-slate-900 text-white flex flex-col shadow-2xl z-20 transition-all duration-300 ease-in-out shrink-0 select-none sticky top-0 h-screen overflow-hidden ${
+          sidebarState === 'full' ? 'w-64' : 
+          sidebarState === 'mini' ? 'w-20' : 
+          'w-0 opacity-0 border-none' 
+        }`}
+      >
         <div className="h-20 flex items-center px-4 border-b border-slate-800 shrink-0 overflow-hidden">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation(); 
+              setSidebarState(prev => prev === 'full' ? 'mini' : 'full');
+            }} 
+            className="p-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
+            title="Toggle Menu (Double click background to hide)"
+          >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <div className={`flex items-center overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'ml-3 opacity-100 w-48' : 'ml-0 opacity-0 w-0'}`}>
+          <div className={`flex items-center overflow-hidden transition-all duration-300 ${sidebarState === 'full' ? 'ml-3 opacity-100 w-48' : 'ml-0 opacity-0 w-0'}`}>
             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-lg shadow-sm shrink-0">{storeDetails.name.charAt(0) || 'S'}</div>
             <h1 className="text-base font-bold tracking-wide ml-3 truncate">{storeDetails.name}</h1>
           </div>
@@ -152,48 +164,50 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
         
         <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto overflow-x-hidden">
           {visibleNavItems.map((item) => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }} className={`w-full flex items-center px-3 py-3.5 rounded-xl font-bold transition-all duration-200 outline-none ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'} ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
-              <span className={`text-2xl shrink-0 ${isSidebarOpen ? 'mr-3' : ''}`}>{item.icon}</span>
-              {isSidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
+            <button 
+              key={item.id} 
+              onClick={(e) => { 
+                e.stopPropagation();
+                setActiveTab(item.id); 
+                if(window.innerWidth < 768) setSidebarState('hidden'); 
+              }} 
+              className={`w-full flex items-center px-3 py-3.5 rounded-xl font-bold transition-all duration-200 outline-none ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'} ${sidebarState === 'full' ? 'justify-start' : 'justify-center'}`}
+            >
+              <span className={`text-2xl shrink-0 ${sidebarState === 'full' ? 'mr-3' : ''}`}>{item.icon}</span>
+              {sidebarState === 'full' && <span className="whitespace-nowrap">{item.label}</span>}
             </button>
           ))}
         </nav>
         
         <div className="p-4 border-t border-slate-800 shrink-0 overflow-hidden bg-slate-950">
-          <div className={`flex items-center justify-between transition-opacity duration-200 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+          <div className={`flex items-center justify-between transition-opacity duration-200 ${sidebarState === 'full' ? 'opacity-100' : 'opacity-0 hidden'}`}>
             <div className="flex flex-col">
               <span className="text-sm font-bold text-white truncate">{currentUser.name}</span>
               <span className="text-xs text-slate-400 uppercase tracking-wide">{currentUser.role}</span>
             </div>
-            <button onClick={handleLogout} className="text-red-400 hover:text-red-500 font-bold text-sm">Log Out</button>
+            <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="text-red-400 hover:text-red-500 font-bold text-sm">Log Out</button>
           </div>
-          {!isSidebarOpen && <button onClick={handleLogout} className="w-full flex justify-center text-red-400">🚪</button>}
+          {sidebarState === 'mini' && <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full flex justify-center text-red-400">🚪</button>}
         </div>
       </aside>
-      
-      <main className="flex-1 overflow-hidden relative flex flex-col">
-        {activeTab === 'POS' && activeCartId && <Dashboard currentUser={currentUser} products={products} setProducts={setProducts} billHistory={billHistory} setBillHistory={setBillHistory} storeDetails={storeDetails} printerSize={printerSize} carts={carts} setCarts={setCarts} activeCartId={activeCartId} setActiveCartId={setActiveCartId} customers={localCustomers} setCustomers={setLocalCustomers} />}
-        {activeTab === 'INVENTORY' && <Inventory products={products} setProducts={setProducts} storeDetails={storeDetails} />}
-        {activeTab === 'PURCHASES' && <Purchases products={products} setProducts={setProducts} purchaseHistory={purchaseHistory} setPurchaseHistory={setPurchaseHistory} />}
-        {activeTab === 'HISTORY' && <History currentUser={currentUser} billHistory={billHistory} setBillHistory={setBillHistory} products={products} setProducts={setProducts} setActiveTab={setActiveTab} carts={carts} setCarts={setCarts} setActiveCartId={setActiveCartId} />}
-       {/* 🔥 We added currentUser={currentUser} to this line! */}
-{activeTab === 'CUSTOMERS' && <Customers currentUser={currentUser} customers={localCustomers} setCustomers={setLocalCustomers} billHistory={billHistory} storeDetails={storeDetails} />}
-        {activeTab === 'REPORTS' && <Reports billHistory={billHistory} />}
-        {activeTab === 'TEAM' && <Team users={localUsers} setUsers={handleTeamUpdate} globalUsers={globalUsers} />}
-        
-        {/* 🔥 SAFELY PLACED: Renders the new Staff page! */}
-        {activeTab === 'STAFF' && <Staff staffList={localStaff} setStaffList={setLocalStaff} />}
-        
-        {activeTab === 'SETTINGS' && <Settings storeDetails={storeDetails} setStoreDetails={setStoreDetails} />}
-        {activeTab === 'HARDWARE' && <Hardware storeDetails={storeDetails} printerSize={printerSize} setPrinterSize={setPrinterSize} />}
+
+      <main className="flex-1 w-full min-h-screen flex flex-col relative">
+        {/* 🔥 EVERY TAB now passes the sidebar props! */}
+        {activeTab === 'POS' && activeCartId && <Dashboard isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} products={products} setProducts={setProducts} billHistory={billHistory} setBillHistory={setBillHistory} storeDetails={storeDetails} printerSize={printerSize} carts={carts} setCarts={setCarts} activeCartId={activeCartId} setActiveCartId={setActiveCartId} customers={localCustomers} setCustomers={setLocalCustomers} />}
+        {activeTab === 'INVENTORY' && <Inventory isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} products={products} setProducts={setProducts} storeDetails={storeDetails} />}
+        {activeTab === 'PURCHASES' && <Purchases isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} products={products} setProducts={setProducts} purchaseHistory={purchaseHistory} setPurchaseHistory={setPurchaseHistory} />}
+        {activeTab === 'HISTORY' && <History isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} billHistory={billHistory} setBillHistory={setBillHistory} products={products} setProducts={setProducts} setActiveTab={setActiveTab} carts={carts} setCarts={setCarts} setActiveCartId={setActiveCartId} />}
+        {activeTab === 'CUSTOMERS' && <Customers isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} customers={localCustomers} setCustomers={setLocalCustomers} billHistory={billHistory} storeDetails={storeDetails} />}
+        {activeTab === 'REPORTS' && <Reports isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} billHistory={billHistory} />}
+        {activeTab === 'TEAM' && <Team isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} users={localUsers} setUsers={handleTeamUpdate} globalUsers={globalUsers} />}
+        {activeTab === 'STAFF' && <Staff isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} staffList={localStaff} setStaffList={setLocalStaff} />}
+        {activeTab === 'SETTINGS' && <Settings isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} setStoreDetails={setStoreDetails} />}
+        {activeTab === 'HARDWARE' && <Hardware isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} printerSize={printerSize} setPrinterSize={setPrinterSize} />}
       </main>
     </div>
   );
 }
 
-// ============================================================================
-// 2. THE MASTER SWITCHBOARD (Global Login Gateway)
-// ============================================================================
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [globalUsers, setGlobalUsers, usersLoaded] = useCloudState("platform_db", "all_users", defaultUsers);

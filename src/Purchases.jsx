@@ -1,22 +1,19 @@
 import React, { useState, useRef } from 'react';
 
-export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) {
+export default function Purchases({ purchaseHistory = [], setPurchaseHistory, isSidebarHidden, showSidebar }) {
   const [selectedPartyId, setSelectedPartyId] = useState(null);
 
-  // New Party Form States
   const [partyName, setPartyName] = useState('');
   const [partyPhone, setPartyPhone] = useState('');
   const [partyAddress, setPartyAddress] = useState('');
   const [partyGst, setPartyGst] = useState('');
 
-  // Party Edit States
   const [isEditingParty, setIsEditingParty] = useState(false);
   const [editPName, setEditPName] = useState('');
   const [editPPhone, setEditPPhone] = useState('');
   const [editPAddress, setEditPAddress] = useState('');
   const [editPGst, setEditPGst] = useState('');
 
-  // Ledger Entry States
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [entryInvoice, setEntryInvoice] = useState('');
@@ -74,7 +71,6 @@ export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) 
     setIsEditingParty(false);
   };
 
-  // --- THE NEW DELETE PARTY LOGIC ---
   const handleDeleteParty = (partyId) => {
     if (window.confirm("🚨 WARNING: Are you sure you want to completely delete this party AND all of their ledger records? This cannot be undone!")) {
       setPurchaseHistory(purchaseHistory.filter(p => p.id !== partyId));
@@ -126,8 +122,17 @@ export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) 
     const balance = totalCredit - totalDebit; 
 
     return (
-      <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+        {isSidebarHidden && (
+          <button 
+            onClick={showSidebar}
+            className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+            title="Show Menu"
+          >
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+        )}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-12 md:mt-0">
           <div className="flex flex-col lg:flex-row justify-between items-start gap-4">
             <div className="flex-1 w-full">
               <button onClick={() => handleSelectParty(null)} className="text-slate-500 hover:text-blue-600 font-bold mb-2 flex items-center gap-1 transition-colors">← Back to Parties</button>
@@ -152,7 +157,6 @@ export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) 
                   <div className="flex items-center gap-3">
                     <h2 className="text-3xl font-bold text-slate-800">{party.name}</h2>
                     <button onClick={() => startEditingParty(party)} className="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded text-xs font-bold transition-colors">✏️ Edit</button>
-                    {/* NEW DELETE BUTTON HERE */}
                     <button onClick={() => handleDeleteParty(party.id)} className="text-red-500 hover:text-white bg-red-50 hover:bg-red-500 px-2 py-1 rounded text-xs font-bold transition-colors shadow-sm">🗑️ Delete Party</button>
                   </div>
                   <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-600 font-medium">
@@ -227,8 +231,18 @@ export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) 
   }
 
   return (
-    <div className="p-6 h-full flex flex-col md:flex-row gap-6 overflow-hidden bg-slate-50 font-sans">
-      <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+    <div className="p-6 h-full flex flex-col md:flex-row gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="w-full md:w-1/3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit mt-12 md:mt-0">
         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span>🏢</span> Create New Party</h2>
         <form onSubmit={handleCreateParty} className="space-y-4">
           <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Party Name *</label><input required type="text" value={partyName} onChange={(e) => setPartyName(e.target.value)} placeholder="e.g. ABC Wholesalers" className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" /></div>
@@ -239,13 +253,13 @@ export default function Purchases({ purchaseHistory = [], setPurchaseHistory }) 
         </form>
       </div>
 
-      <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+      <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden shrink-0 mt-12 md:mt-0">
         <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold text-slate-800">Your Parties / Suppliers</h2><span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">{purchaseHistory.length} Registered</span>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
           {purchaseHistory.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400"><span className="text-4xl mb-3">📇</span><p className="font-medium">No parties registered yet.</p><p className="text-sm">Create your first supplier on the left to start tracking purchases.</p></div>
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 min-h-[200px]"><span className="text-4xl mb-3">📇</span><p className="font-medium">No parties registered yet.</p><p className="text-sm">Create your first supplier on the left to start tracking purchases.</p></div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {purchaseHistory.map(party => {

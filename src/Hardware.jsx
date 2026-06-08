@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 
-export default function Hardware({ storeDetails, printerSize, setPrinterSize }) {
+export default function Hardware({ storeDetails, printerSize, setPrinterSize, isSidebarHidden, showSidebar }) {
   const [printerStatus, setPrinterStatus] = useState('Disconnected');
   const [deviceName, setDeviceName] = useState('');
   
@@ -26,20 +26,29 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
   const handleTestScan = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      setLastScanSuccess(`Success! Read barcode: ₹{testScan}`);
+      setLastScanSuccess(`Success! Read barcode: ${testScan}`);
       setTestScan(''); 
       try { new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play(); } catch(err) {}
     }
   };
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-      <div className="max-w-5xl mx-auto w-full space-y-6">
+    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="max-w-5xl mx-auto w-full space-y-6 mt-12 md:mt-0">
         
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">🖨️ Hardware & Devices</h2>
+        <h2 className="text-2xl font-bold text-slate-800 pl-12 mb-2">🖨️ Hardware & Devices</h2>
         <p className="text-slate-500 mb-6">Manage your Bluetooth thermal printers, formats, and barcode scanners.</p>
 
-        {/* --- PRINTER SETUP & PREVIEW CARD --- */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-6 border-b border-slate-100 pb-4">
             <div className="text-4xl">🧾</div>
@@ -50,11 +59,8 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
           </div>
 
           <div className="flex flex-col lg:flex-row gap-8">
-            
-            {/* Left Column: Settings */}
             <div className="flex-1 space-y-6">
               
-              {/* Connection Status */}
               <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex flex-col">
@@ -71,7 +77,6 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
                 </div>
               </div>
 
-              {/* Format Selector */}
               <div>
                 <h4 className="font-bold text-slate-700 mb-3">Receipt Paper Format</h4>
                 <div className="flex gap-4">
@@ -93,12 +98,10 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
 
             </div>
 
-            {/* Right Column: Live Preview */}
             <div className="flex-1 flex flex-col items-center bg-slate-100 p-6 rounded-xl border border-slate-200">
               <h4 className="font-bold text-slate-500 mb-4 uppercase text-xs tracking-wider">Live Preview</h4>
               
-              {/* Dynamic Preview Box */}
-              <div className={`bg-white shadow-lg border border-slate-300 p-4 text-black font-mono transition-all duration-300 ₹{printerSize === '58mm' ? 'w-[220px] text-[11px]' : 'w-[300px] text-sm'}`}>
+              <div className={`bg-white shadow-lg border border-slate-300 p-4 text-black font-mono transition-all duration-300 ${printerSize === '58mm' ? 'w-[220px] text-[11px]' : 'w-[300px] text-sm'}`}>
                 <h2 className="text-center font-bold mb-1 uppercase text-base leading-tight">{storeDetails?.name || 'STOREFRONT POS'}</h2>
                 <div className="text-center text-slate-600 mb-2 leading-tight" style={{ fontSize: printerSize === '58mm' ? '9px' : '12px' }}>
                   {storeDetails?.address && <div>{storeDetails.address}</div>}
@@ -112,7 +115,6 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
 
                 <div className="flex justify-between font-bold mb-1"><span>ITEM</span><span>TOTAL</span></div>
                 
-                {/* Dummy Items for preview */}
                 <div className="space-y-2 mb-3">
                   <div>
                     <div className="flex justify-between"><span className="truncate pr-2">Mech Keyboard</span><span>₹85.00</span></div>
@@ -138,7 +140,6 @@ export default function Hardware({ storeDetails, printerSize, setPrinterSize }) 
           </div>
         </div>
 
-        {/* --- SCANNER SETUP CARD --- */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-4 border-b border-slate-100 pb-4">
             <div className="text-4xl">🔫</div>

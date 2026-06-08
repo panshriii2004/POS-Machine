@@ -1,16 +1,13 @@
 import React, { useState, useMemo } from 'react';
 
-export default function Reports({ billHistory }) {
+export default function Reports({ billHistory, isSidebarHidden, showSidebar }) {
   const [timeFilter, setTimeFilter] = useState('Daily');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // --- THE FIX: Smart Date Decoder ---
-  // This automatically detects if your PC uses DD/MM or MM/DD and forces JavaScript to read it correctly!
   const parseDateSafely = (dateStr) => {
     if (!dateStr) return new Date();
     
-    // Extract just the date part (e.g., "02/04/2026" from "02/04/2026, 11:25:46 am")
     const datePart = dateStr.split(',')[0].trim();
     const parts = datePart.split(/[\/\-]/);
     
@@ -20,29 +17,25 @@ export default function Reports({ billHistory }) {
       const p3 = parseInt(parts[2], 10);
       
       if (p3 > 2000) {
-        // Test the browser's local format using Nov 25th
         const testDate = new Date(2023, 10, 25); 
         if (testDate.toLocaleDateString().startsWith('25')) {
-          // If it starts with 25, your region is DD/MM/YYYY
           return new Date(p3, p2 - 1, p1); 
         } else {
-          // Otherwise, it's MM/DD/YYYY
           return new Date(p3, p1 - 1, p2); 
         }
       }
     }
-    return new Date(dateStr); // Fallback standard parser
+    return new Date(dateStr); 
   };
 
-  // Math logic to intelligently filter dates
   const filteredData = useMemo(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of exactly today
+    today.setHours(0, 0, 0, 0); 
     
     return billHistory.filter(bill => {
       const billDate = parseDateSafely(bill.date);
       const billDateMidnight = new Date(billDate);
-      billDateMidnight.setHours(0, 0, 0, 0); // Normalize time
+      billDateMidnight.setHours(0, 0, 0, 0); 
 
       if (timeFilter === 'Daily') {
         return billDateMidnight.getTime() === today.getTime();
@@ -63,7 +56,7 @@ export default function Reports({ billHistory }) {
       }
       
       if (timeFilter === 'Custom Range') {
-        if (!startDate || !endDate) return true; // Show all if user hasn't picked both dates
+        if (!startDate || !endDate) return true; 
         
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
@@ -74,11 +67,10 @@ export default function Reports({ billHistory }) {
         return billDate >= start && billDate <= end;
       }
       
-      return true; // 'All Time'
+      return true; 
     });
   }, [billHistory, timeFilter, startDate, endDate]);
 
-  // Calculate Totals based on the filtered data
   const totalSales = filteredData.reduce((sum, bill) => sum + (bill.total || 0), 0);
   const totalGST = filteredData.reduce((sum, bill) => sum + (bill.gstAmount || 0), 0);
   const totalDiscounts = filteredData.reduce((sum, bill) => sum + (bill.discountAmount || 0), 0);
@@ -86,14 +78,23 @@ export default function Reports({ billHistory }) {
   const netRevenue = totalSales - totalRefunds;
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+    <div className="p-6 h-full flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans relative">
+      {isSidebarHidden && (
+        <button 
+          onClick={showSidebar}
+          className="absolute top-4 left-4 z-50 p-2 md:p-3 bg-slate-900 text-white rounded-xl shadow-2xl hover:bg-slate-800 transition-all hover:scale-105"
+          title="Show Menu"
+        >
+          <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+      )}
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-12 md:mt-0">
         
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-4 border-b border-slate-100 pb-4">
           <h2 className="text-2xl font-bold text-slate-800">📊 Business Reports</h2>
           
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            {/* Filter Buttons */}
             <div className="flex flex-wrap gap-2 bg-slate-100 p-1 rounded-lg">
               {['Daily', 'Weekly', 'Monthly', 'Yearly', 'All Time', 'Custom Range'].map(f => (
                 <button 
@@ -106,7 +107,6 @@ export default function Reports({ billHistory }) {
               ))}
             </div>
 
-            {/* Custom Date Calendar Inputs */}
             {timeFilter === 'Custom Range' && (
               <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 p-2 rounded-lg shadow-sm">
                 <input 
@@ -127,7 +127,6 @@ export default function Reports({ billHistory }) {
           </div>
         </div>
 
-        {/* Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
             <p className="text-sm font-bold text-emerald-600 uppercase tracking-wider mb-1">Net Revenue</p>
