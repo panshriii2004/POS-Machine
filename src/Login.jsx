@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { auth } from './firebase'; // Import auth from your firebase.js
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
-export default function Login({ users, onLogin, onRegister }) {
+export default function Login({ users, onLogin, onRegister, deviceId, onForceLogoutAll }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // --- Login State ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  // --- Device Conflict State ---
+  const [isLoggedElsewhere, setIsLoggedElsewhere] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
 
   // --- Registration State ---
   const [shopName, setShopName] = useState('');
@@ -21,12 +24,32 @@ export default function Login({ users, onLogin, onRegister }) {
   const handleLogin = (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
+
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
     
-    const user = users.find(u => u.username === username && u.password === password);
     if (user) {
+      // Block login if the user is active on a DIFFERENT device
+      if (user.activeDeviceId && user.activeDeviceId !== deviceId) {
+        setIsLoggedElsewhere(true);
+        setPendingUser(user);
+        setIsLoading(false);
+        return;
+      }
       onLogin(user);
     } else {
-      setError('Invalid username or password');
+      setError('Invalid username or password.');
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleLogoutAllDevices = () => {
+    if (pendingUser) {
+      onForceLogoutAll(pendingUser);
+      setIsLoggedElsewhere(false);
+      setPendingUser(null);
+      setError('All other devices logged out. You can now log in.');
     }
   };
 
@@ -34,33 +57,28 @@ export default function Login({ users, onLogin, onRegister }) {
     e.preventDefault();
     setError('');
 
-    // 1. Check if the username is already taken in the database
-    if (users.find(u => u.username === regUsername)) {
-      setError('That username is already taken. Please choose another.');
+    if (users.find(u => u.username.toLowerCase() === regUsername.toLowerCase())) {
+      setError('That username is already taken globally. Please choose another.');
       return;
     }
 
-    // 2. Create the new Admin User object
     const newUser = {
       id: Date.now().toString(),
-      name: 'Admin', // Default name for the shop creator
-      username: regUsername,
+      name: 'Admin',
+      username: regUsername.toLowerCase(),
       password: regPassword,
       role: 'admin',
-      
-      // Extra details you requested
       shopName: shopName,
       category: category,
       email: email,
-      phone: phone
+      phone: phone,
+      activeDeviceId: deviceId // Tie new user to this device immediately
     };
 
-    // 3. Send the new user to App.jsx to save in the cloud (if the prop exists)
     if (onRegister) {
       onRegister(newUser, shopName);
     }
 
-    // 4. Instantly log them in to their new POS!
     onLogin(newUser);
   };
 
@@ -83,20 +101,60 @@ export default function Login({ users, onLogin, onRegister }) {
         
         {error && <div className="mb-6 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-bold text-center border border-red-200">{error}</div>}
         
-        {/* ================= LOGIN FORM ================= */}
-        {!isRegistering ? (
+        {isLoggedElsewhere ? (
+          <div className="flex flex-col items-center animate-fade-in">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h3 className="text-lg font-bold text-slate-800 text-center mb-2">Active session detected</h3>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              Your account is currently active on another device. You must log out of all other sessions to continue here.
+            </p>
+            <button 
+              onClick={handleLogoutAllDevices}
+              className="w-full py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition shadow-sm mb-3"
+            >
+              Logout from all devices
+            </button>
+            <button 
+              onClick={() => { setIsLoggedElsewhere(false); setError(''); }}
+              className="text-sm text-blue-600 font-bold hover:underline mt-2"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : !isRegistering ? (
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Username</label>
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
+              <input 
+                type="text" 
+                value={username} 
+                onChange={e => setUsername(e.target.value)} 
+                autoComplete="username" 
+                className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" 
+                required 
+              />
             </div>
+            
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}  autoComplete="current-password" className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" required />
+              <input 
+                type="password" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)}  
+                autoComplete="current-password" 
+                className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all" 
+                required 
+              />
             </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md mt-4">
-              Sign In
+            
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-md mt-4"
+            >
+              {isLoading ? 'Verifying...' : 'Sign In'}
             </button>
+            
             <div className="text-center pt-4 border-t border-slate-100">
               <p className="text-sm text-slate-600">Don't have a store yet?</p>
               <button type="button" onClick={() => { setIsRegistering(true); setError(''); }} className="text-blue-600 hover:text-blue-800 font-bold mt-1">
@@ -105,9 +163,7 @@ export default function Login({ users, onLogin, onRegister }) {
             </div>
           </form>
         ) : (
-        /* ================= REGISTRATION FORM ================= */
           <form onSubmit={handleRegister} className="space-y-4">
-            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Shop Name</label>
@@ -154,7 +210,6 @@ export default function Login({ users, onLogin, onRegister }) {
             </div>
           </form>
         )}
-
       </div>
     </div>
   );

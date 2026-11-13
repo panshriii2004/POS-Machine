@@ -23,7 +23,6 @@ app.post('/print-receipt', async (req, res) => {
     // 2. Design the Receipt
     printer.alignCenter();
     printer.bold(true);
-    printer.setTextSize(1, 1);
     printer.println(storeDetails.name || "STOREFRONT POS");
     
     printer.setTextNormal();
@@ -57,14 +56,13 @@ app.post('/print-receipt', async (req, res) => {
     printer.alignRight();
     printer.println(`Subtotal: Rs.${subtotal.toFixed(2)}`);
     printer.bold(true);
-    printer.setTextSize(1, 1);
     printer.println(`TOTAL: Rs.${total.toFixed(2)}`);
     
     printer.setTextNormal();
     printer.alignCenter();
     printer.drawLine();
     printer.println("Thank you for shopping!");
-    
+     printer.println("Visit Again!");
     printer.cut();
 
     // 4. Send it to the hardware!

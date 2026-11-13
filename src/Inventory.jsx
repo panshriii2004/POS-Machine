@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Barcode from 'react-barcode';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
-import Tesseract from 'tesseract.js'; 
+import Tesseract from 'tesseract.js';
+import { Html5QrcodeScanner } from 'html5-qrcode'; // 🔥 NEW: Camera Scanner Import
 
-export default function Inventory({ products, setProducts, storeDetails, isSidebarHidden, showSidebar }) { // 🔥 The new props!
+export default function Inventory({ products, setProducts, storeDetails, isSidebarHidden, showSidebar }) {
   const [search, setSearch] = useState('');
   
   const [stockFilter, setStockFilter] = useState('all'); 
@@ -26,6 +27,7 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
   const printRef = useRef(null);
 
   const [isScanningImage, setIsScanningImage] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false); // 🔥 NEW: Scanner Modal State
 
   const nameRef = useRef(null);
   const mrpRef = useRef(null);
@@ -35,6 +37,36 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
   const submitBtnRef = useRef(null);
   const fileImportRef = useRef(null); 
   const imageImportRef = useRef(null); 
+
+  // 🔥 NEW: Barcode Scanner Lifecycle Hook
+  useEffect(() => {
+    let scanner = null;
+    if (showBarcodeScanner) {
+      scanner = new Html5QrcodeScanner(
+        "camera-barcode-reader",
+        { fps: 10, qrbox: { width: 250, height: 100 } },
+        false
+      );
+      
+      scanner.render(
+        (decodedText) => {
+          // On Success
+          setBarcodeStr(decodedText);
+          setShowBarcodeScanner(false);
+          if (submitBtnRef.current) submitBtnRef.current.focus();
+        },
+        (errorMessage) => {
+          // Ignore background scanning errors
+        }
+      );
+    }
+
+    return () => {
+      if (scanner) {
+        scanner.clear().catch(e => console.error("Failed to clear scanner", e));
+      }
+    };
+  }, [showBarcodeScanner]);
 
   const handleKeyDown = (e, nextRef) => {
     if (e.key === 'Enter') {
@@ -145,10 +177,6 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
     e.target.value = null;
   };
 
-  const handleGenerateBarcode = () => {
-    setBarcodeStr(Math.floor(1000000000 + Math.random() * 9000000000).toString());
-  };
-
   const handleSaveProduct = (e) => {
     e.preventDefault();
     if (!name.trim() || !price || !barcodeStr.trim()) return alert("Name, Price, and Barcode are required!");
@@ -243,7 +271,20 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
   return (
     <div className="p-4 pt-16 md:p-6 min-h-screen flex flex-col gap-6 overflow-y-auto bg-slate-50 font-sans w-full relative">
       
-      {/* 🔥 THE DYNAMIC INVENTORY BUTTON: Uses absolute positioning so it scrolls up with the page! */}
+      {/* 🔥 OVERLAYS (Scanner and Loader) */}
+      {showBarcodeScanner && (
+        <div className="fixed inset-0 bg-slate-900/95 z-[60] flex flex-col items-center justify-center p-4">
+          <div className="bg-white p-4 rounded-2xl shadow-2xl w-full max-w-md relative">
+            <button onClick={() => setShowBarcodeScanner(false)} className="absolute -top-4 -right-4 w-10 h-10 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full font-bold shadow-lg z-10 transition-colors">✕</button>
+            <h2 className="text-xl font-bold text-center text-slate-800 mb-4 tracking-wide uppercase">Scan Barcode</h2>
+            <div className="rounded-xl overflow-hidden border-2 border-slate-200">
+              <div id="camera-barcode-reader" className="w-full"></div>
+            </div>
+            <p className="text-center text-slate-500 text-xs mt-4">Point your camera at the product's physical barcode.</p>
+          </div>
+        </div>
+      )}
+
       {isSidebarHidden && (
         <button 
           onClick={showSidebar}
@@ -274,10 +315,10 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
           <input type="file" accept="image/*" ref={imageImportRef} onChange={handleImageImport} className="hidden" />
           
           <button onClick={() => imageImportRef.current.click()} className="flex-1 lg:flex-none bg-purple-50 border border-purple-200 text-purple-700 font-bold py-2 px-3 md:px-5 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 text-sm md:text-base whitespace-nowrap">
-            📷 Scan
+            📷 Read Image
           </button>
           <button onClick={() => fileImportRef.current.click()} className="flex-1 lg:flex-none bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold py-2 px-3 md:px-5 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 text-sm md:text-base whitespace-nowrap">
-            📥 Import
+            📥 Import XLS
           </button>
           <button onClick={() => setShowPrintStudio(true)} className="flex-1 lg:flex-none bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold py-2 px-3 md:px-5 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 text-sm md:text-base whitespace-nowrap">
             🖨️ Studio
@@ -326,7 +367,11 @@ export default function Inventory({ products, setProducts, storeDetails, isSideb
             <label className="block text-[10px] md:text-xs font-bold text-slate-500 uppercase mb-1">Barcode *</label>
             <div className="flex gap-1">
               <input ref={barcodeInputRef} onKeyDown={e => handleKeyDown(e, submitBtnRef)} required type="text" value={barcodeStr} onChange={e => setBarcodeStr(e.target.value)} className="w-full p-2 md:p-2.5 text-sm md:text-base border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-mono" />
-              <button type="button" onClick={() => { setBarcodeStr(Date.now().toString().slice(-10)); if(barcodeInputRef.current) barcodeInputRef.current.focus(); }} className="bg-slate-200 hover:bg-slate-300 px-3 rounded-lg font-bold text-lg" title="Generate New Barcode">↻</button>
+              
+              {/* 🔥 NEW: Camera Scan Button */}
+              <button type="button" onClick={() => setShowBarcodeScanner(true)} className="bg-slate-200 hover:bg-slate-300 px-3 rounded-lg font-bold text-lg" title="Scan Physical Barcode">📷</button>
+              
+              <button type="button" onClick={() => { setBarcodeStr(Math.floor(1000000000 + Math.random() * 9000000000).toString()); if(barcodeInputRef.current) barcodeInputRef.current.focus(); }} className="bg-slate-200 hover:bg-slate-300 px-3 rounded-lg font-bold text-lg" title="Generate Random Barcode">↻</button>
             </div>
           </div>
 

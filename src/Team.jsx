@@ -13,10 +13,12 @@ export default function Team({ users, setUsers, globalUsers, isSidebarHidden, sh
     e.preventDefault();
     setError('');
 
+    // 🔥 PREVENTS DUPLICATES GLOBALLY
+    // Checks the master directory to see if ANY store is using this username
     const isTaken = globalUsers.some((u) => u.username.toLowerCase() === username.toLowerCase());
 
     if (isTaken) {
-      setError(`The username "@${username}" is already taken by another store.`);
+      setError(`The username "@${username.toLowerCase()}" is already taken globally. Please choose a unique username.`);
       return;
     }
 

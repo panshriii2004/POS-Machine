@@ -14,6 +14,16 @@ import Reports from './Reports';
 import Purchases from './Purchases';
 import Customers from './Customers'; 
 
+// Persistent unique ID for this specific browser
+export const getDeviceId = () => {
+  let deviceId = localStorage.getItem('local_device_id');
+  if (!deviceId) {
+    deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('local_device_id', deviceId);
+  }
+  return deviceId;
+};
+
 // Default Data 
 const initialProducts = [{ id: 1, name: 'Sample Item', price: 100, stock: 50, barcode: '123456789' }];
 
@@ -54,7 +64,6 @@ function useCloudState(collectionName, docName, defaultValue) {
 }
 
 function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers }) {
-  
   const dbFolder = currentUser.dbFolder || `shop_${currentUser.username}`;
   
   const [products, setProducts, productsLoaded] = useCloudState(dbFolder, "pos_products", initialProducts);
@@ -71,15 +80,39 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
   const [storeDetails, setStoreDetails, storeLoaded] = useCloudState(dbFolder, "pos_store", { 
     name: currentUser.shopName || 'My Store', 
     phone: currentUser.phone || '', 
+    email: '', 
     address: '', 
     gstNo: '' 
+  });
+
+  const [receiptConfig, setReceiptConfig, receiptConfigLoaded] = useCloudState(dbFolder, "pos_receipt_config", {
+    headerText: currentUser.shopName || 'STOREFRONT POS',
+    printerFont: 'A', 
+    shopNo: '', showShopNo: false, 
+    showEmail: true, showPhone: true, showGst: true,
+    showCustomerDetails: true, showCustomerCredit: false, showMeasuringUnit: false,
+    showMrp: true, showPaymentMode: true, showTotalItems: true, showTotalQty: true,
+    showSaveAmount: true, customNote: false, deliveryAddress: false,
+    footerText: "Thank You . Visit again!!"
   });
   
   const [activeCartId, setActiveCartId] = useState(null);
   const [activeTab, setActiveTab] = useState('POS');
   const [printerSize, setPrinterSize] = useState('80mm');
-  
   const [sidebarState, setSidebarState] = useState('full'); 
+
+  const [printCharacteristic, setPrintCharacteristic] = useState(null);
+  const [bluetoothPrinterName, setBluetoothPrinterName] = useState('');
+
+  // Protect the session: Kick user out if someone else logs into their account
+  useEffect(() => {
+    if (globalUsers.length > 0) {
+      const foundUser = globalUsers.find(u => u.username === currentUser.username);
+      if (!foundUser || foundUser.activeDeviceId !== getDeviceId()) {
+        onPlatformLogout(true); // pass true for "forced" logout
+      }
+    }
+  }, [globalUsers, currentUser.username, onPlatformLogout]);
 
   const handleSidebarDoubleClick = () => {
     setSidebarState(prev => prev === 'hidden' ? 'full' : 'hidden');
@@ -91,7 +124,7 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
     }
   }, [cartsLoaded, carts, activeCartId]);
 
-  const isEverythingLoaded = productsLoaded && billsLoaded && purchasesLoaded && storeLoaded && cartsLoaded && usersLoaded && customersLoaded && staffLoaded;
+  const isEverythingLoaded = productsLoaded && billsLoaded && purchasesLoaded && storeLoaded && cartsLoaded && usersLoaded && customersLoaded && staffLoaded && receiptConfigLoaded;
   
   if (!isEverythingLoaded) {
     return (
@@ -130,7 +163,7 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
 
   const handleLogout = () => {
     if(window.confirm("Are you sure you want to log out?")) {
-      onPlatformLogout(); 
+      onPlatformLogout(false); 
     }
   };
 
@@ -152,7 +185,7 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
               setSidebarState(prev => prev === 'full' ? 'mini' : 'full');
             }} 
             className="p-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors shrink-0"
-            title="Toggle Menu (Double click background to hide)"
+            title="Toggle Menu"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
@@ -192,8 +225,7 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
       </aside>
 
       <main className="flex-1 w-full min-h-screen flex flex-col relative">
-        {/* 🔥 EVERY TAB now passes the sidebar props! */}
-        {activeTab === 'POS' && activeCartId && <Dashboard isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} products={products} setProducts={setProducts} billHistory={billHistory} setBillHistory={setBillHistory} storeDetails={storeDetails} printerSize={printerSize} carts={carts} setCarts={setCarts} activeCartId={activeCartId} setActiveCartId={setActiveCartId} customers={localCustomers} setCustomers={setLocalCustomers} />}
+        {activeTab === 'POS' && activeCartId && <Dashboard receiptConfig={receiptConfig} printCharacteristic={printCharacteristic} isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} products={products} setProducts={setProducts} billHistory={billHistory} setBillHistory={setBillHistory} storeDetails={storeDetails} printerSize={printerSize} carts={carts} setCarts={setCarts} activeCartId={activeCartId} setActiveCartId={setActiveCartId} customers={localCustomers} setCustomers={setLocalCustomers} />}
         {activeTab === 'INVENTORY' && <Inventory isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} products={products} setProducts={setProducts} storeDetails={storeDetails} />}
         {activeTab === 'PURCHASES' && <Purchases isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} products={products} setProducts={setProducts} purchaseHistory={purchaseHistory} setPurchaseHistory={setPurchaseHistory} />}
         {activeTab === 'HISTORY' && <History isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} currentUser={currentUser} billHistory={billHistory} setBillHistory={setBillHistory} products={products} setProducts={setProducts} setActiveTab={setActiveTab} carts={carts} setCarts={setCarts} setActiveCartId={setActiveCartId} />}
@@ -201,8 +233,8 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
         {activeTab === 'REPORTS' && <Reports isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} billHistory={billHistory} />}
         {activeTab === 'TEAM' && <Team isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} users={localUsers} setUsers={handleTeamUpdate} globalUsers={globalUsers} />}
         {activeTab === 'STAFF' && <Staff isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} staffList={localStaff} setStaffList={setLocalStaff} />}
-        {activeTab === 'SETTINGS' && <Settings isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} setStoreDetails={setStoreDetails} />}
-        {activeTab === 'HARDWARE' && <Hardware isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} printerSize={printerSize} setPrinterSize={setPrinterSize} />}
+        {activeTab === 'SETTINGS' && <Settings isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} setStoreDetails={setStoreDetails} currentUser={currentUser} globalUsers={globalUsers} setGlobalUsers={setGlobalUsers} onPlatformLogout={onPlatformLogout} />}
+        {activeTab === 'HARDWARE' && <Hardware receiptConfig={receiptConfig} setReceiptConfig={setReceiptConfig} printCharacteristic={printCharacteristic} setPrintCharacteristic={setPrintCharacteristic} bluetoothPrinterName={bluetoothPrinterName} setBluetoothPrinterName={setBluetoothPrinterName} isSidebarHidden={sidebarState === 'hidden'} showSidebar={() => setSidebarState('full')} storeDetails={storeDetails} printerSize={printerSize} setPrinterSize={setPrinterSize} />}
       </main>
     </div>
   );
@@ -211,8 +243,26 @@ function MainPOS({ currentUser, onPlatformLogout, globalUsers, setGlobalUsers })
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [globalUsers, setGlobalUsers, usersLoaded] = useCloudState("platform_db", "all_users", defaultUsers);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  if (!usersLoaded) {
+  // Auto-login logic on refresh
+  useEffect(() => {
+    if (usersLoaded && isCheckingAuth) {
+      const savedUid = localStorage.getItem('auto_login_uid');
+      const deviceId = getDeviceId();
+      if (savedUid) {
+        const foundUser = globalUsers.find(u => u.id === savedUid);
+        if (foundUser && foundUser.activeDeviceId === deviceId) {
+          setCurrentUser(foundUser);
+        } else {
+          localStorage.removeItem('auto_login_uid');
+        }
+      }
+      setIsCheckingAuth(false);
+    }
+  }, [usersLoaded, isCheckingAuth, globalUsers]);
+
+  if (!usersLoaded || isCheckingAuth) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-900 text-white font-sans">
         <h2 className="text-xl font-bold tracking-widest uppercase text-slate-300">Connecting... ☁️</h2>
@@ -224,11 +274,25 @@ export default function App() {
     return (
       <Login 
         users={globalUsers} 
+        deviceId={getDeviceId()}
+        onForceLogoutAll={(user) => {
+          const updatedUsers = globalUsers.map(u => 
+            u.id === user.id ? { ...u, activeDeviceId: null } : u
+          );
+          setGlobalUsers(updatedUsers);
+        }}
         onLogin={(user) => {
-          setCurrentUser(user);
+          const deviceId = getDeviceId();
+          localStorage.setItem('auto_login_uid', user.id);
+          const updatedUsers = globalUsers.map(u => 
+            u.id === user.id ? { ...u, activeDeviceId: deviceId } : u
+          );
+          setGlobalUsers(updatedUsers);
+          setCurrentUser({ ...user, activeDeviceId: deviceId });
         }} 
         onRegister={(newUser) => {
-          const userWithDB = { ...newUser, dbFolder: `shop_${newUser.username}` };
+          const deviceId = getDeviceId();
+          const userWithDB = { ...newUser, dbFolder: `shop_${newUser.username}`, activeDeviceId: deviceId };
           setGlobalUsers([...globalUsers, userWithDB]); 
         }}
       />
@@ -238,7 +302,18 @@ export default function App() {
   return (
     <MainPOS 
       currentUser={currentUser} 
-      onPlatformLogout={() => setCurrentUser(null)} 
+      onPlatformLogout={(force = false) => {
+        localStorage.removeItem('auto_login_uid');
+        if (!force) {
+          // Only clear the device lock if they manually log out. 
+          // If forced out, someone else owns the session now.
+          const updatedUsers = globalUsers.map(u => 
+            u.id === currentUser.id ? { ...u, activeDeviceId: null } : u
+          );
+          setGlobalUsers(updatedUsers);
+        }
+        setCurrentUser(null);
+      }} 
       globalUsers={globalUsers}
       setGlobalUsers={setGlobalUsers}
     />

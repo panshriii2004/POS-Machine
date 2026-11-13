@@ -38,7 +38,6 @@ onSnapshot(q, (snapshot) => {
         // 4. DESIGN THE RECEIPT
         printer.alignCenter();
         printer.bold(true);
-        printer.setTextSize(1, 1);
         printer.println(ticket.storeDetails.name || "STOREFRONT POS");
         
         printer.setTextNormal();
@@ -70,7 +69,6 @@ onSnapshot(q, (snapshot) => {
         printer.alignRight();
         printer.println(`Subtotal: Rs.${ticket.subtotal.toFixed(2)}`);
         printer.bold(true);
-        printer.setTextSize(1, 1);
         printer.println(`TOTAL: Rs.${ticket.total.toFixed(2)}`);
         
         printer.setTextNormal();
