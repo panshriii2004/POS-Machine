@@ -5,10 +5,23 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
   const [search, setSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
   const [viewingBill, setViewingBill] = useState(null);
   
   const [editingPayment, setEditingPayment] = useState(null);
   const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentNote, setEditPaymentNote] = useState('');
+
+  // Manual Credit Entry States
+  const todayDate = new Date().toISOString().split('T')[0];
+  const [manualCreditAmount, setManualCreditAmount] = useState('');
+  const [manualCreditDate, setManualCreditDate] = useState(todayDate);
+  const [manualCreditNote, setManualCreditNote] = useState('');
+
+  // Edit/Delete Credit Entry States
+  const [editingCredit, setEditingCredit] = useState(null);
+  const [editCreditAmount, setEditCreditAmount] = useState('');
+  const [editCreditNote, setEditCreditNote] = useState('');
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [newCustName, setNewCustName] = useState('');
@@ -101,22 +114,15 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
 
   // Filter by Credit, Selected Color, and Village
   const filteredCustomers = searchFiltered.filter(c => {
-    // 1. Village Filter
     if (villageFilter !== 'all' && c.village?.trim() !== villageFilter) return false;
-    
-    // 2. Credit Toggle Filter
     if (showCreditOnly && c.creditDue <= 0) return false;
-    
-    // 3. Color Filter
     if (showCreditOnly && creditColorFilter !== 'all') {
       const status = getCustomerStatus(c);
       if (status.type !== creditColorFilter) return false;
     }
-    
     return true;
   });
 
-  // Calculate the total credit dynamically based on the filtered list
   const totalFilteredCredit = filteredCustomers.reduce((sum, customer) => {
     return sum + (customer.creditDue > 0 ? customer.creditDue : 0);
   }, 0);
@@ -148,6 +154,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
       creditDue: 0,
       lastVisit: new Date().toLocaleDateString(),
       paymentHistory: [],
+      creditHistory: [],
       addedBy: currentUser?.id,
       manualColorOverride: ''
     };
@@ -200,7 +207,8 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     const newPaymentRecord = {
       id: Date.now().toString(),
       date: new Date().toLocaleString(),
-      amount: amount
+      amount: amount,
+      note: paymentNote.trim() || 'Cash Payment'
     };
 
     const updatedCustomers = customers.map(c => {
@@ -222,11 +230,51 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     });
     
     setPaymentAmount('');
+    setPaymentNote('');
+  };
+
+  // Manual Credit Entry Handler
+  const handleManualCreditSubmit = (e) => {
+    e.preventDefault();
+    const amount = parseFloat(manualCreditAmount);
+    if (isNaN(amount) || amount <= 0) return alert("Enter a valid credit amount");
+
+    const newCreditRecord = {
+      id: Date.now().toString(),
+      date: manualCreditDate,
+      amount: amount,
+      note: manualCreditNote.trim() || 'Manual Credit Entry'
+    };
+
+    const updatedCustomers = customers.map(c => {
+      if (c.id === selectedCustomer.id) {
+        return { 
+          ...c, 
+          creditDue: (c.creditDue || 0) + amount,
+          creditHistory: [newCreditRecord, ...(c.creditHistory || [])],
+          lastVisit: manualCreditDate
+        };
+      }
+      return c;
+    });
+
+    setCustomers(updatedCustomers);
+    setSelectedCustomer({ 
+      ...selectedCustomer, 
+      creditDue: (selectedCustomer.creditDue || 0) + amount,
+      creditHistory: [newCreditRecord, ...(selectedCustomer.creditHistory || [])],
+      lastVisit: manualCreditDate
+    });
+
+    setManualCreditAmount('');
+    setManualCreditNote('');
+    setManualCreditDate(todayDate);
   };
 
   const openEditPayment = (payment) => {
     setEditingPayment(payment);
     setEditPaymentAmount(payment.amount.toString());
+    setEditPaymentNote(payment.note || '');
   };
 
   const handleSaveEditPayment = (e) => {
@@ -242,7 +290,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     }
 
     const updatedPaymentHistory = selectedCustomer.paymentHistory.map(p => 
-      p.id === editingPayment.id ? { ...p, amount: newAmount } : p
+      p.id === editingPayment.id ? { ...p, amount: newAmount, note: editPaymentNote } : p
     );
 
     const updatedCustomers = customers.map(c => {
@@ -273,6 +321,59 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     setCustomers(updatedCustomers);
     setSelectedCustomer({ ...selectedCustomer, creditDue: selectedCustomer.creditDue + amountToRestore, paymentHistory: updatedPaymentHistory });
     setEditingPayment(null);
+  };
+
+  // Edit / Delete Manual Credit Entry Handlers
+  const openEditCredit = (credit) => {
+    setEditingCredit(credit);
+    setEditCreditAmount(credit.amount.toString());
+    setEditCreditNote(credit.note || '');
+  };
+
+  const handleSaveEditCredit = (e) => {
+    e.preventDefault();
+    const newAmount = parseFloat(editCreditAmount);
+    if (isNaN(newAmount) || newAmount <= 0) return alert("Enter a valid amount");
+
+    const oldAmount = editingCredit.amount;
+    const difference = newAmount - oldAmount; 
+
+    if (selectedCustomer.creditDue + difference < 0) {
+      if(!window.confirm("This edit will result in negative credit due. Continue?")) return;
+    }
+
+    const updatedCreditHistory = (selectedCustomer.creditHistory || []).map(cr => 
+      cr.id === editingCredit.id ? { ...cr, amount: newAmount, note: editCreditNote } : cr
+    );
+
+    const updatedCustomers = customers.map(c => {
+      if (c.id === selectedCustomer.id) {
+        return { ...c, creditDue: c.creditDue + difference, creditHistory: updatedCreditHistory };
+      }
+      return c;
+    });
+
+    setCustomers(updatedCustomers);
+    setSelectedCustomer({ ...selectedCustomer, creditDue: selectedCustomer.creditDue + difference, creditHistory: updatedCreditHistory });
+    setEditingCredit(null);
+  };
+
+  const handleDeleteCredit = () => {
+    if (!window.confirm("Are you sure you want to delete this credit entry? This will reduce their Credit Due by ₹" + editingCredit.amount)) return;
+
+    const updatedCreditHistory = (selectedCustomer.creditHistory || []).filter(cr => cr.id !== editingCredit.id);
+    const amountToSubtract = editingCredit.amount;
+
+    const updatedCustomers = customers.map(c => {
+      if (c.id === selectedCustomer.id) {
+        return { ...c, creditDue: c.creditDue - amountToSubtract, creditHistory: updatedCreditHistory };
+      }
+      return c;
+    });
+
+    setCustomers(updatedCustomers);
+    setSelectedCustomer({ ...selectedCustomer, creditDue: selectedCustomer.creditDue - amountToSubtract, creditHistory: updatedCreditHistory });
+    setEditingCredit(null);
   };
 
   const handleSendWhatsApp = () => {
@@ -439,11 +540,65 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Note / Description</label>
+                <input 
+                  type="text" 
+                  value={editPaymentNote} 
+                  onChange={(e) => setEditPaymentNote(e.target.value)} 
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50" 
+                />
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleDeletePayment} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 rounded-xl transition-colors border border-red-200">
                   🗑️ Delete
                 </button>
                 <button type="submit" className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-colors shadow-md">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Manual Credit Modal */}
+      {editingCredit && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm relative animate-fade-in-down">
+            <button onClick={() => setEditingCredit(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 font-bold transition-colors">✕</button>
+            <h2 className="text-xl font-bold text-slate-800 mb-1">Edit Credit Entry</h2>
+            <p className="text-xs text-slate-500 mb-6 border-b border-slate-100 pb-4">Date: {editingCredit.date}</p>
+            
+            <form onSubmit={handleSaveEditCredit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Credit Amount (₹)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={editCreditAmount} 
+                  onChange={(e) => setEditCreditAmount(e.target.value)} 
+                  className="w-full p-3 text-lg font-bold border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 text-orange-700" 
+                  required 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Note / Description</label>
+                <input 
+                  type="text" 
+                  value={editCreditNote} 
+                  onChange={(e) => setEditCreditNote(e.target.value)} 
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-slate-50" 
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={handleDeleteCredit} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 rounded-xl transition-colors border border-red-200">
+                  🗑️ Delete
+                </button>
+                <button type="submit" className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors shadow-md">
                   Save Changes
                 </button>
               </div>
@@ -600,7 +755,6 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                 >
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="font-bold text-slate-800 truncate pr-2">{customer.name}</h3>
-                    {/* MODIFIED: Now shows the actual amount due in the card list */}
                     {customer.creditDue > 0 && (
                       <span className={`${status.badgeBg} ${status.text} text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0`}>
                         Due: ₹{customer.creditDue.toFixed(2)}
@@ -678,30 +832,111 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
 
               </div>
 
-              {selectedCustomer.creditDue > 0 && (
-                <div className="mt-6 p-4 bg-white border border-slate-200 rounded-xl flex flex-col lg:flex-row gap-4 justify-between items-center shadow-sm">
-                  <form onSubmit={handleSettleCredit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+              {/* Action Bar: Settle Credit & Send WhatsApp */}
+              <div className="mt-6 p-4 bg-white border border-slate-200 rounded-xl flex flex-col lg:flex-row gap-4 justify-between items-center shadow-sm">
+                {selectedCustomer.creditDue > 0 && (
+                  <form onSubmit={handleSettleCredit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto items-center">
                     <input 
                       type="number" 
                       step="0.01" 
                       placeholder="Amount to pay..." 
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-50 w-full sm:w-40 bg-slate-50"
+                      className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-36 bg-slate-50 text-sm font-bold"
                     />
-                    <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap shrink-0">
+                    <input 
+                      type="text" 
+                      placeholder="Note (e.g. PhonePe / Cash)" 
+                      value={paymentNote}
+                      onChange={(e) => setPaymentNote(e.target.value)}
+                      className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48 bg-slate-50 text-sm"
+                    />
+                    <button type="submit" className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-lg transition-colors shadow-sm whitespace-nowrap shrink-0">
                       💵 Receive
                     </button>
                   </form>
-                  
-                  <button onClick={handleSendWhatsApp} className="w-full lg:w-auto bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm shrink-0">
-                    <span>💬 Send Reminder</span>
-                  </button>
-                </div>
-              )}
+                )}
+                
+                <button onClick={handleSendWhatsApp} className="w-full lg:w-auto bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm shrink-0">
+                  <span>💬 Send Reminder</span>
+                </button>
+              </div>
+
+              {/* Manual Credit (Udhaar) Entry Section */}
+              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl shadow-sm">
+                <h3 className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-3">➕ Add Manual Credit (Udhaar Entry)</h3>
+                <form onSubmit={handleManualCreditSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-3">
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="Amount (₹) *" 
+                      value={manualCreditAmount}
+                      onChange={(e) => setManualCreditAmount(e.target.value)}
+                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-orange-900"
+                      required
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <input 
+                      type="date" 
+                      value={manualCreditDate}
+                      onChange={(e) => setManualCreditDate(e.target.value)}
+                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-slate-700"
+                      required
+                    />
+                  </div>
+                  <div className="sm:col-span-4">
+                    <input 
+                      type="text" 
+                      placeholder="Note (e.g. 2 Shirts, 1 Pant)" 
+                      value={manualCreditNote}
+                      onChange={(e) => setManualCreditNote(e.target.value)}
+                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm text-slate-700"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold p-2.5 rounded-lg transition-colors shadow-sm text-sm whitespace-nowrap">
+                      Add Credit
+                    </button>
+                  </div>
+                </form>
+              </div>
+
             </div>
 
             <div className="p-4 md:p-6 flex-1 overflow-y-auto space-y-8 min-h-[300px] custom-scrollbar">
+              
+              {/* Manual Credit History */}
+              {selectedCustomer.creditHistory && selectedCustomer.creditHistory.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Manual Credit Logs</h3>
+                  <div className="space-y-3">
+                    {selectedCustomer.creditHistory.map(credit => (
+                      <div key={credit.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-orange-700">📦 Credit Added</span>
+                            <span className="text-xs bg-white border border-orange-200 text-orange-800 px-2 py-0.5 rounded-md font-semibold">{credit.date}</span>
+                          </div>
+                          <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {credit.note || 'No description provided'}</p>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                          <span className="font-bold text-orange-700 text-lg">+ ₹{credit.amount.toFixed(2)}</span>
+                          <button 
+                            onClick={() => openEditCredit(credit)} 
+                            className="bg-white border border-orange-200 text-orange-600 hover:bg-orange-600 hover:text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold shrink-0"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Received Payments History */}
               {selectedCustomer.paymentHistory && selectedCustomer.paymentHistory.length > 0 && (
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Received Payments</h3>
@@ -709,8 +944,11 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                     {selectedCustomer.paymentHistory.map(payment => (
                       <div key={payment.id} className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
                         <div>
-                          <span className="font-bold text-emerald-700 mr-3">💰 Payment Logged</span>
-                          <span className="text-sm text-slate-500 block sm:inline">{payment.date}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-emerald-700">💰 Payment Logged</span>
+                            <span className="text-xs bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md font-semibold">{payment.date}</span>
+                          </div>
+                          <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {payment.note || 'Cash Payment'}</p>
                         </div>
                         <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                           <span className="font-bold text-emerald-700 text-lg">+ ₹{payment.amount.toFixed(2)}</span>
@@ -727,10 +965,11 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
                 </div>
               )}
 
+              {/* Purchase History */}
               <div>
                 <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Recent Purchase History</h3>
                 {customerBills.length === 0 ? (
-                  <p className="text-slate-400 text-sm">No recorded purchases in the system.</p>
+                  <p className="text-slate-400 text-sm">No recorded system purchases.</p>
                 ) : (
                   <div className="space-y-4">
                     {customerBills.map(bill => (

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Login({ users, onLogin, onRegister, deviceId, onForceLogoutAll }) {
+export default function Login({ users = [], onLogin, onRegister, deviceId, onForceLogoutAll }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +26,8 @@ export default function Login({ users, onLogin, onRegister, deviceId, onForceLog
     setError('');
     setIsLoading(true);
 
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+    const safeUsers = Array.isArray(users) ? users : [];
+    const user = safeUsers.find(u => u.username?.toLowerCase() === username.toLowerCase() && u.password === password);
     
     if (user) {
       // Block login if the user is active on a DIFFERENT device
@@ -57,7 +58,11 @@ export default function Login({ users, onLogin, onRegister, deviceId, onForceLog
     e.preventDefault();
     setError('');
 
-    if (users.find(u => u.username.toLowerCase() === regUsername.toLowerCase())) {
+    const safeUsers = Array.isArray(users) ? users : [];
+
+    // Check if username is already taken
+    const existingUser = safeUsers.find(u => u.username?.toLowerCase() === regUsername.toLowerCase());
+    if (existingUser) {
       setError('That username is already taken globally. Please choose another.');
       return;
     }

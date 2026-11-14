@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase'; 
 
 import Login from './Login';
@@ -284,16 +284,54 @@ export default function App() {
         onLogin={(user) => {
           const deviceId = getDeviceId();
           localStorage.setItem('auto_login_uid', user.id);
-          const updatedUsers = globalUsers.map(u => 
-            u.id === user.id ? { ...u, activeDeviceId: deviceId } : u
-          );
+          
+          const userExists = globalUsers.some(u => u.id === user.id);
+          const targetUser = userExists ? user : { ...user, dbFolder: `shop_${user.username}` };
+          
+          const updatedUsers = userExists 
+            ? globalUsers.map(u => u.id === user.id ? { ...u, activeDeviceId: deviceId } : u)
+            : [...globalUsers, { ...targetUser, activeDeviceId: deviceId }];
+            
           setGlobalUsers(updatedUsers);
-          setCurrentUser({ ...user, activeDeviceId: deviceId });
+          setCurrentUser({ ...targetUser, activeDeviceId: deviceId });
         }} 
-        onRegister={(newUser) => {
+        onRegister={async (newUser) => {
           const deviceId = getDeviceId();
-          const userWithDB = { ...newUser, dbFolder: `shop_${newUser.username}`, activeDeviceId: deviceId };
-          setGlobalUsers([...globalUsers, userWithDB]); 
+          const userWithDB = { 
+            ...newUser, 
+            dbFolder: `shop_${newUser.username}`, 
+            activeDeviceId: deviceId 
+          };
+          
+          try {
+            // 🔥 Fetch absolute latest users list from Firestore to avoid race condition/overwriting
+            const docRef = doc(db, "platform_db", "all_users");
+            const docSnap = await getDoc(docRef);
+            let currentList = globalUsers.length > 0 ? globalUsers : defaultUsers;
+            
+            if (docSnap.exists() && Array.isArray(docSnap.data().data)) {
+              currentList = docSnap.data().data;
+            }
+
+            const existingIndex = currentList.findIndex(u => u.id === userWithDB.id || u.username.toLowerCase() === userWithDB.username.toLowerCase());
+            let updatedUsers;
+            if (existingIndex >= 0) {
+              updatedUsers = [...currentList];
+              updatedUsers[existingIndex] = userWithDB;
+            } else {
+              updatedUsers = [...currentList, userWithDB];
+            }
+
+            // Save the merged list back to Firestore immediately
+            await setDoc(docRef, { data: updatedUsers });
+
+            setGlobalUsers(updatedUsers); 
+            localStorage.setItem('auto_login_uid', userWithDB.id);
+            setCurrentUser(userWithDB);
+          } catch (error) {
+            console.error("❌ Cloud registration error:", error);
+            alert("Failed to save new shop to cloud database. Check your internet or Firebase permissions.");
+          }
         }}
       />
     );
@@ -305,8 +343,6 @@ export default function App() {
       onPlatformLogout={(force = false) => {
         localStorage.removeItem('auto_login_uid');
         if (!force) {
-          // Only clear the device lock if they manually log out. 
-          // If forced out, someone else owns the session now.
           const updatedUsers = globalUsers.map(u => 
             u.id === currentUser.id ? { ...u, activeDeviceId: null } : u
           );

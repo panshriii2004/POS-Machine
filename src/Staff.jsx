@@ -4,6 +4,7 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
   const [search, setSearch] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isEditingStaff, setIsEditingStaff] = useState(false);
 
   const [showAllAttendance, setShowAllAttendance] = useState(false);
   const [showIndividualAttendance, setShowIndividualAttendance] = useState(false);
@@ -17,20 +18,22 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
   const [ledgerAmount, setLedgerAmount] = useState('');
   const [ledgerNote, setLedgerNote] = useState('');
   const [attendanceNote, setAttendanceNote] = useState('');
-
-  const fileInputRef = useRef(null);
-  
-  // 🔥 NEW: Ref for the right panel to handle scrolling
-  const rightPanelRef = useRef(null);
   
   const todayDate = new Date().toISOString().split('T')[0]; 
+  const [attendanceDate, setAttendanceDate] = useState(todayDate);
+
+  const fileInputRef = useRef(null);
+  const rightPanelRef = useRef(null);
+
+  // Track touch start X coordinate for swipe gestures
+  const touchStartXRef = useRef(0);
+  // Track last tap time for mobile double-tap detection
+  const lastTapTimeRef = useRef(0);
 
   const selectedStaff = staffList.find(s => s.id === selectedStaffId);
   const filteredStaff = staffList.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.jobTitle.toLowerCase().includes(search.toLowerCase()));
 
-  // 🔥 NEW: Scroll function that triggers on mobile
   const scrollToRightPanel = () => {
-    // Only scroll if we are on a smaller screen (where columns are stacked)
     if (window.innerWidth < 768 && rightPanelRef.current) {
       setTimeout(() => {
         rightPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -55,21 +58,43 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
     }
   };
 
-  const handleAddStaff = (e) => {
+  const handleSaveStaff = (e) => {
     e.preventDefault();
-    const newStaff = {
-      id: Date.now().toString(),
-      name,
-      jobTitle,
-      phone,
-      photo,
-      attendance: {}, 
-      ledgerBalance: 0, 
-      ledgerHistory: []
-    };
-    setStaffList([...staffList, newStaff]);
+    if (isEditingStaff && selectedStaffId) {
+      const updatedList = staffList.map(s => {
+        if (s.id === selectedStaffId) {
+          return { ...s, name, jobTitle, phone, photo: photo || s.photo };
+        }
+        return s;
+      });
+      setStaffList(updatedList);
+      setIsEditingStaff(false);
+    } else {
+      const newStaff = {
+        id: Date.now().toString(),
+        name,
+        jobTitle,
+        phone,
+        photo,
+        attendance: {}, 
+        ledgerBalance: 0, 
+        ledgerHistory: []
+      };
+      setStaffList([...staffList, newStaff]);
+    }
     setName(''); setJobTitle(''); setPhone(''); setPhoto(null);
     setShowAddForm(false);
+  };
+
+  const handleStartEdit = () => {
+    if (!selectedStaff) return;
+    setIsEditingStaff(true);
+    setShowAddForm(true);
+    setName(selectedStaff.name);
+    setJobTitle(selectedStaff.jobTitle);
+    setPhone(selectedStaff.phone || '');
+    setPhoto(selectedStaff.photo || null);
+    scrollToRightPanel();
   };
 
   const handleDeleteStaff = (idToDelete) => {
@@ -79,25 +104,60 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
     }
   };
 
-  const handleMarkAttendance = (status) => {
-    if ((status === 'Absent' || status === 'Half Day') && !attendanceNote.trim()) {
-      if (!window.confirm(`You haven't added a reason/note for marking them ${status}. Continue anyway?`)) return;
-    }
-
+  // 🔥 Fixed: Now accepts an optional targetDate (defaults to todayDate for gestures)
+  const quickMarkAttendance = (staffId, status, noteText = '', targetDate = todayDate) => {
     const updatedStaff = staffList.map(s => {
-      if (s.id === selectedStaff.id) {
+      if (s.id === staffId) {
         return { 
           ...s, 
           attendance: { 
             ...(s.attendance || {}), 
-            [todayDate]: { status: status, note: attendanceNote.trim() } 
+            [targetDate]: { status: status, note: noteText } 
           } 
         };
       }
       return s;
     });
     setStaffList(updatedStaff);
+  };
+
+  const handleMarkAttendance = (status) => {
+    if (!selectedStaff) return;
+    if ((status === 'Absent' || status === 'Half Day') && !attendanceNote.trim()) {
+      if (!window.confirm(`You haven't added a reason/note for marking them ${status}. Continue anyway?`)) return;
+    }
+    // Pass the selected attendanceDate here
+    quickMarkAttendance(selectedStaff.id, status, attendanceNote.trim(), attendanceDate);
     setAttendanceNote('');
+  };
+
+  // 🔥 Gesture Handlers for List Cards (Always applies to todayDate)
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e, staffId) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - touchStartXRef.current;
+
+    // Swipe threshold (50px)
+    if (diff < -50) {
+      // Swipe Left -> Present (Today)
+      quickMarkAttendance(staffId, 'Present', 'Swiped Left (Present)', todayDate);
+    } else if (diff > 50) {
+      // Swipe Right -> Absent (Today)
+      quickMarkAttendance(staffId, 'Absent', 'Swiped Right (Absent)', todayDate);
+    } else {
+      // Tap / Double Tap detection for mobile
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTapTimeRef.current;
+      if (tapLength < 300 && tapLength > 0) {
+        // Double tap -> Half Day (Today)
+        quickMarkAttendance(staffId, 'Half Day', 'Double Tapped (Half Day)', todayDate);
+        e.stopPropagation();
+      }
+      lastTapTimeRef.current = currentTime;
+    }
   };
 
   const handleAddLedgerEntry = (type) => {
@@ -159,8 +219,6 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
       {showAllAttendance && (
         <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden relative animate-fade-in-down">
-            
-            {/* 🔥 FIXED: Responsive Header for Calendar */}
             <div className="p-4 md:p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 shrink-0 relative gap-4">
               <div className="pr-10">
                 <h2 className="text-xl md:text-2xl font-bold text-slate-800">Master Attendance</h2>
@@ -169,7 +227,6 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
               <div className="flex items-center gap-4 w-full sm:w-auto">
                 <input type="month" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} className="p-2 w-full sm:w-auto border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" />
               </div>
-              {/* Close button is now strictly fixed to the top right to avoid being pushed off screen */}
               <button onClick={() => setShowAllAttendance(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-500 hover:text-white hover:border-red-500 rounded-full text-slate-600 font-bold transition-colors shadow-sm">✕</button>
             </div>
 
@@ -277,7 +334,7 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
 
       {/* LEFT COLUMN */}
       <div className="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full overflow-hidden shrink-0 mt-12 md:mt-0">
-        <div className="flex justify-between items-center mb-4 shrink-0">
+        <div className="flex justify-between items-center mb-2 shrink-0">
           <h2 className={`text-xl md:text-2xl font-bold text-slate-800 ${isSidebarHidden ? 'md:ml-12' : ''}`}>HR Portal</h2>
           <div className="flex gap-2">
             <button onClick={() => setShowAllAttendance(true)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 text-sm rounded-lg transition-colors" title="Master Attendance Sheet">
@@ -285,9 +342,11 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
             </button>
             <button 
               onClick={() => { 
+                setIsEditingStaff(false);
+                setName(''); setJobTitle(''); setPhone(''); setPhoto(null);
                 setShowAddForm(true); 
                 setSelectedStaffId(null); 
-                scrollToRightPanel(); // 🔥 Trigger Scroll
+                scrollToRightPanel(); 
               }} 
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 text-sm rounded-lg transition-colors"
             >
@@ -295,6 +354,11 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
             </button>
           </div>
         </div>
+
+        {/* Gesture Hint Bar */}
+        <p className="text-[11px] text-slate-400 mb-3 italic">
+          💡 Swipe Left: Present | Swipe Right: Absent | Double Tap: Half Day
+        </p>
         
         <div className="relative mb-4 shrink-0">
           <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
@@ -310,20 +374,22 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
                 onClick={() => { 
                   setSelectedStaffId(staff.id); 
                   setShowAddForm(false); 
-                  scrollToRightPanel(); // 🔥 Trigger Scroll
-                }}
-                // Works for double click or single click to be safe
-                onDoubleClick={() => { 
-                  setSelectedStaffId(staff.id); 
-                  setShowAddForm(false); 
+                  setIsEditingStaff(false);
                   scrollToRightPanel(); 
                 }}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${selectedStaffId === staff.id ? 'bg-indigo-50 border-indigo-400 shadow-sm' : 'bg-white border-slate-100 hover:border-indigo-300 hover:shadow-sm'}`}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  quickMarkAttendance(staff.id, 'Half Day', 'Double Clicked (Half Day)', todayDate);
+                }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={(e) => handleTouchEnd(e, staff.id)}
+                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 select-none touch-pan-y ${selectedStaffId === staff.id && !showAddForm ? 'bg-indigo-50 border-indigo-400 shadow-sm' : 'bg-white border-slate-100 hover:border-indigo-300 hover:shadow-sm'}`}
+                title="Swipe Left: Present | Swipe Right: Absent | Double Click/Tap: Half Day"
               >
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 border border-slate-300 shrink-0 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 border border-slate-300 shrink-0 flex items-center justify-center pointer-events-none">
                   {staff.photo ? <img src={staff.photo} alt="profile" className="w-full h-full object-cover" /> : <span className="text-slate-500 font-bold text-lg">{staff.name.charAt(0)}</span>}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pointer-events-none">
                   <div className="flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 truncate">{staff.name}</h3>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${todayRecord.status === 'Present' ? 'bg-emerald-100 text-emerald-700' : todayRecord.status === 'Absent' ? 'bg-red-100 text-red-700' : todayRecord.status === 'Half Day' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -344,11 +410,11 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
         {showAddForm && (
           <div className="p-6 overflow-y-auto h-full animate-fade-in-down">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
-              <h2 className="text-2xl font-bold text-slate-800">Add New Employee</h2>
-              <button onClick={() => setShowAddForm(false)} className="text-slate-400 hover:text-red-500 font-bold">✕ Cancel</button>
+              <h2 className="text-2xl font-bold text-slate-800">{isEditingStaff ? 'Edit Employee Profile' : 'Add New Employee'}</h2>
+              <button onClick={() => { setShowAddForm(false); setIsEditingStaff(false); }} className="text-slate-400 hover:text-red-500 font-bold">✕ Cancel</button>
             </div>
 
-            <form onSubmit={handleAddStaff} className="space-y-5 max-w-lg">
+            <form onSubmit={handleSaveStaff} className="space-y-5 max-w-lg">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center relative cursor-pointer hover:bg-slate-200 transition-colors" onClick={() => fileInputRef.current.click()}>
                   {photo ? <img src={photo} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-2xl">📷</span>}
@@ -377,7 +443,7 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
               </div>
 
               <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">
-                Create HR Profile
+                {isEditingStaff ? 'Save Changes' : 'Create HR Profile'}
               </button>
             </form>
           </div>
@@ -393,9 +459,15 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
         {!showAddForm && selectedStaff && (
           <div className="flex flex-col h-full overflow-hidden">
             <div className="p-6 border-b border-slate-100 bg-slate-50 shrink-0 relative">
-              <button onClick={() => handleDeleteStaff(selectedStaff.id)} className="absolute top-4 right-4 text-xs font-bold text-red-400 hover:text-red-600 border border-red-200 hover:bg-red-50 py-1 px-2 rounded transition-colors">
-                Remove Profile
-              </button>
+              
+              <div className="absolute top-4 right-4 flex items-center gap-2">
+                <button onClick={handleStartEdit} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:bg-indigo-50 py-1 px-2.5 rounded-lg transition-colors">
+                  ✏️ Edit Profile
+                </button>
+                <button onClick={() => handleDeleteStaff(selectedStaff.id)} className="text-xs font-bold text-red-400 hover:text-red-600 border border-red-200 hover:bg-red-50 py-1 px-2.5 rounded-lg transition-colors">
+                  🗑️ Remove
+                </button>
+              </div>
               
               <div className="flex flex-col sm:flex-row sm:items-center gap-5 mt-6 sm:mt-0">
                 <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-white border-4 border-white shadow-md shrink-0 flex items-center justify-center">
@@ -425,7 +497,19 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 min-h-[400px]">
               
               <section className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm">
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Today's Attendance ({todayDate})</h3>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Mark Attendance</h3>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-slate-600">Select Date:</label>
+                    <input 
+                      type="date" 
+                      value={attendanceDate} 
+                      max={todayDate}
+                      onChange={(e) => setAttendanceDate(e.target.value)}
+                      className="p-1.5 text-xs font-bold border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+                    />
+                  </div>
+                </div>
                 
                 <input 
                   type="text" 
@@ -436,15 +520,17 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
                 />
 
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  <button onClick={() => handleMarkAttendance('Present')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Present' ? 'bg-emerald-500 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'}`}>✅ Present</button>
-                  <button onClick={() => handleMarkAttendance('Half Day')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Half Day' ? 'bg-yellow-500 text-white border-yellow-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-yellow-50'}`}>⏱️ Half Day</button>
-                  <button onClick={() => handleMarkAttendance('Absent')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, todayDate).status === 'Absent' ? 'bg-red-500 text-white border-red-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50'}`}>❌ Absent</button>
+                  <button onClick={() => handleMarkAttendance('Present')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, attendanceDate).status === 'Present' ? 'bg-emerald-500 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'}`}>✅ Present</button>
+                  <button onClick={() => handleMarkAttendance('Half Day')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, attendanceDate).status === 'Half Day' ? 'bg-yellow-500 text-white border-yellow-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-yellow-50'}`}>⏱️ Half Day</button>
+                  <button onClick={() => handleMarkAttendance('Absent')} className={`flex-1 py-3 rounded-xl font-bold transition-all border ${getAttendanceRecord(selectedStaff, attendanceDate).status === 'Absent' ? 'bg-red-500 text-white border-red-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50'}`}>❌ Absent</button>
                 </div>
-                {getAttendanceRecord(selectedStaff, todayDate).note && (
-                  <p className="mt-3 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
-                    <strong className="text-slate-700">Today's Note:</strong> {getAttendanceRecord(selectedStaff, todayDate).note}
-                  </p>
-                )}
+
+                <div className="mt-3 flex justify-between items-center text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                  <span>Status for <strong className="text-slate-700">{attendanceDate}</strong>: <span className="font-bold uppercase text-indigo-600">{getAttendanceRecord(selectedStaff, attendanceDate).status}</span></span>
+                  {getAttendanceRecord(selectedStaff, attendanceDate).note && (
+                    <span className="truncate max-w-[200px]">Note: {getAttendanceRecord(selectedStaff, attendanceDate).note}</span>
+                  )}
+                </div>
               </section>
 
               <section className="bg-slate-100 p-4 md:p-5 rounded-2xl border border-slate-200">
