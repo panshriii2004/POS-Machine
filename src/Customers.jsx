@@ -37,6 +37,10 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
   // FULL EDIT PROFILE STATE
   const [editingCustomerObj, setEditingCustomerObj] = useState(null);
 
+  // FULL PAGE VIEW & BROADCAST STATES
+  const [isFullPageView, setIsFullPageView] = useState(false);
+  const [broadcastText, setBroadcastText] = useState('Hello! New festive arrivals are now available at Chitranjan Cloth Store. Visit us soon! ✨');
+
   const detailsRef = useRef(null);
   const listRef = useRef(null);
 
@@ -133,6 +137,7 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
 
   const handleSelectCustomer = (customer) => {
     setSelectedCustomer(customer);
+    setIsFullPageView(false); // Switch to detail view when a customer is clicked
     if (window.innerWidth < 768) {
       setTimeout(() => {
         detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -376,16 +381,17 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
     setEditingCredit(null);
   };
 
-  const handleSendWhatsApp = () => {
-    if (!selectedCustomer.phone || selectedCustomer.phone === 'N/A') {
+  const handleSendWhatsApp = (customer) => {
+    const target = customer || selectedCustomer;
+    if (!target || !target.phone || target.phone === 'N/A') {
       return alert("No valid phone number saved for this customer.");
     }
     
-    let phone = selectedCustomer.phone.replace(/\D/g, '');
+    let phone = target.phone.replace(/\D/g, '');
     if (phone.length === 10) phone = '91' + phone;
 
-    const shopName = storeDetails?.name || "Our Store";
-    const message = `Hello ${selectedCustomer.name},\n\nThis is a gentle reminder from ${shopName}. You currently have an outstanding credit balance of ₹${selectedCustomer.creditDue.toFixed(2)}.\n\nPlease arrange a payment at your earliest convenience. Thank you!`;
+    const shopName = storeDetails?.name || "Chitranjan Cloth Store";
+    const message = broadcastText.trim() || `Hello ${target.name},\n\nThis is a gentle reminder from ${shopName}. You currently have an outstanding credit balance of ₹${target.creditDue.toFixed(2)}.\n\nPlease arrange a payment at your earliest convenience. Thank you!`;
     
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
@@ -652,363 +658,505 @@ export default function Customers({ currentUser, customers, setCustomers, billHi
         </div>
       )}
 
-      <div ref={listRef} className="flex w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex-col h-[55vh] md:h-full overflow-hidden shrink-0 mt-12 md:mt-0">
-        <h2 className={`text-2xl font-bold text-slate-800 mb-4 ${isSidebarHidden ? 'ml-12 md:ml-12' : ''}`}>Customer Directory</h2>
-        
-        <div className="flex flex-wrap gap-2 mb-4 shrink-0">
-          <div className="relative flex-1 min-w-[150px]">
-            <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
-            <input 
-              type="text" 
-              placeholder="Search name or village..." 
-              value={search} 
-              onChange={(e) => setSearch(e.target.value)} 
-              className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm" 
-            />
-          </div>
-          
-          <select 
-            value={villageFilter}
-            onChange={(e) => setVillageFilter(e.target.value)}
-            className="bg-white border border-slate-200 text-slate-600 font-bold px-3 py-2 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[100px]"
-          >
-            <option value="all">🌍 All Villages</option>
-            {uniqueVillages.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-
-          {currentUser?.role === 'admin' && (
+      {/* FULL PAGE VIEW MODAL OR CONTAINER */}
+      {isFullPageView ? (
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col h-full overflow-y-auto custom-scrollbar relative">
+          <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">👥 All Customers Directory & Messaging</h2>
+              <p className="text-xs text-slate-500">Browse all customer accounts, filter by village/credit, and send broadcast notifications.</p>
+            </div>
             <button 
-              onClick={() => {
-                setShowCreditOnly(!showCreditOnly);
-                setCreditColorFilter('all'); 
-              }}
-              className={`font-bold px-3 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap text-sm border flex items-center ${showCreditOnly ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-              title="View customers with pending credit"
+              onClick={() => setIsFullPageView(false)} 
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl transition-colors text-sm"
             >
-              {showCreditOnly ? '👥 View All' : '💳 Credit Only'}
-            </button>
-          )}
-
-          <button 
-            onClick={() => setShowAddCustomerModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition-colors whitespace-nowrap shadow-sm"
-          >
-            + Add
-          </button>
-        </div>
-
-        {/* Credit Color Sub-Filter Row */}
-        {showCreditOnly && (
-          <div className="flex gap-2 mb-4 overflow-x-auto shrink-0 pb-1 custom-scrollbar">
-            <button 
-              onClick={() => setCreditColorFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'all' ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-            >
-              All Credit
-            </button>
-            <button 
-              onClick={() => setCreditColorFilter('emerald')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'emerald' ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
-            >
-              🟢 <span className="hidden sm:inline">Green</span> (≤ 1M)
-            </button>
-            <button 
-              onClick={() => setCreditColorFilter('yellow')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'yellow' ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'}`}
-            >
-              🟡 <span className="hidden sm:inline">Yellow</span> (1-6M)
-            </button>
-            <button 
-              onClick={() => setCreditColorFilter('red')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'red' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}
-            >
-              🔴 <span className="hidden sm:inline">Red</span> (&gt; 6M)
+              ← Back to Split View
             </button>
           </div>
-        )}
 
-        {/* Total Dynamic Credit Banner */}
-        {totalFilteredCredit > 0 && (
-          <div className="bg-slate-800 rounded-xl p-3 mb-4 flex justify-between items-center shrink-0 shadow-sm transition-all">
-            <span className="text-slate-300 font-semibold text-[11px] uppercase tracking-widest">
-              Total Outstanding
+          {/* Broadcast Message Input Section */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+            <h3 className="font-bold text-blue-900 text-sm mb-2">📢 WhatsApp Notification Broadcast Template</h3>
+            <div className="flex flex-col md:flex-row gap-3">
+              <textarea 
+                value={broadcastText}
+                onChange={(e) => setBroadcastText(e.target.value)}
+                rows="2"
+                className="flex-1 p-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"
+                placeholder="Type your promotional message or festival greetings here..."
+              />
+              <div className="flex items-center text-xs text-blue-700 font-medium">
+                Tip: Click "💬 Message" on any customer card below to send them this text directly via WhatsApp.
+              </div>
+            </div>
+          </div>
+
+          {/* Top Filter & Outstanding Banner (Matching Image Reference) */}
+          <div className="flex flex-wrap gap-2 mb-4 shrink-0">
+            <div className="relative flex-1 min-w-[200px]">
+              <span className="absolute left-3 top-3 text-slate-400">🔍</span>
+              <input 
+                type="text" 
+                placeholder="Search name or village..." 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm" 
+              />
+            </div>
+            
+            <select 
+              value={villageFilter}
+              onChange={(e) => setVillageFilter(e.target.value)}
+              className="bg-white border border-slate-200 text-slate-600 font-bold px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            >
+              <option value="all">🌍 All Villages</option>
+              {uniqueVillages.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+
+            {currentUser?.role === 'admin' && (
+              <button 
+                onClick={() => {
+                  setShowCreditOnly(!showCreditOnly);
+                  setCreditColorFilter('all'); 
+                }}
+                className={`font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm whitespace-nowrap text-sm border flex items-center ${showCreditOnly ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+              >
+                {showCreditOnly ? '👥 View All' : '💳 Credit Only'}
+              </button>
+            )}
+
+            <button 
+              onClick={() => setShowAddCustomerModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap shadow-sm text-sm"
+            >
+              + Add Customer
+            </button>
+          </div>
+
+          {/* Total Outstanding Banner (from reference image) */}
+          <div className="bg-[#1e293b] rounded-xl p-4 mb-6 flex justify-between items-center shadow-md">
+            <span className="text-slate-200 font-bold text-xs uppercase tracking-widest">
+              TOTAL OUTSTANDING
             </span>
-            <span className="text-white font-bold text-lg">
+            <span className="text-white font-bold text-xl">
               ₹{totalFilteredCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-        )}
 
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-          {filteredCustomers.length === 0 ? (
-            <p className="text-center text-slate-400 mt-10">No customers found.</p>
-          ) : (
-            filteredCustomers.map(customer => {
-              const status = getCustomerStatus(customer);
-              const isSelected = selectedCustomer?.id === customer.id;
-              
-              return (
-                <div 
-                  key={customer.id} 
-                  onClick={() => handleSelectCustomer(customer)}
-                  className={`p-4 rounded-xl border-l-[6px] border-y border-r cursor-pointer transition-all ${isSelected ? 'shadow-md ' + status.bg : 'bg-white hover:shadow-sm'} ${status.border} border-y-slate-100 border-r-slate-100`}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-bold text-slate-800 truncate pr-2">{customer.name}</h3>
-                    {customer.creditDue > 0 && (
-                      <span className={`${status.badgeBg} ${status.text} text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0`}>
-                        Due: ₹{customer.creditDue.toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>📞 {customer.phone || 'N/A'}</span>
-                    <span className="font-medium text-slate-700">Spent: ₹{customer.totalSpent?.toFixed(2) || '0.00'}</span>
-                  </div>
-                  {customer.village && (
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-                      🌍 {customer.village}
+          {/* Full Page Customer Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
+            {filteredCustomers.length === 0 ? (
+              <p className="text-center text-slate-400 col-span-full py-10">No customers found.</p>
+            ) : (
+              filteredCustomers.map(customer => {
+                const status = getCustomerStatus(customer);
+                return (
+                  <div 
+                    key={customer.id} 
+                    className={`p-4 rounded-xl border-l-[6px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${status.border}`}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-slate-800 text-base">{customer.name}</h3>
+                        {customer.creditDue > 0 && (
+                          <span className={`${status.badgeBg} ${status.text} text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider`}>
+                            Due: ₹{customer.creditDue.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mb-1">📞 {customer.phone || 'N/A'}</p>
+                      <p className="text-xs text-slate-500 mb-3">🌍 {customer.village || 'No Village Recorded'}</p>
                     </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
 
-      <div ref={detailsRef} className="flex w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex-col min-h-[60vh] md:h-full overflow-hidden shrink-0 mt-2 md:mt-0">
-        {!selectedCustomer ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
-            <span className="text-6xl mb-4">👤</span>
-            <p className="text-lg font-medium">Select a customer to view details</p>
-          </div>
-        ) : (
-          <div className="flex flex-col h-full overflow-hidden">
-            
-            <div className={`p-4 md:p-6 border-b shrink-0 ${getCustomerStatus(selectedCustomer).bg} border-slate-200 transition-colors`}>
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                
-                <div className="flex-1 min-w-0 w-full">
-                  <div className="flex justify-between items-start w-full">
-                    <h2 className="text-3xl font-bold text-slate-800 truncate pr-2">{selectedCustomer.name}</h2>
-                    {currentUser?.role === 'admin' && (
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
                       <button 
-                        onClick={handleDeleteCustomer} 
-                        className="text-xs font-bold text-red-400 hover:text-white border border-red-200 hover:bg-red-500 py-1.5 px-3 rounded-lg transition-colors shrink-0 bg-white"
+                        onClick={() => handleSelectCustomer(customer)}
+                        className="text-xs font-bold text-blue-600 hover:underline"
                       >
-                        Delete Profile
+                        📂 View Profile
                       </button>
-                    )}
-                  </div>
-                  <p className="text-slate-500 mt-1 font-mono text-sm">📞 {selectedCustomer.phone}</p>
-                  <p className="text-xs text-slate-400 mt-1">Last Visit: {selectedCustomer.lastVisit}</p>
-                  
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">
-                    🌍 {selectedCustomer.village || 'No Village/Town Saved'}
-                  </p>
-
-                  <div className="mt-3">
-                    <div className="group flex items-start gap-2 max-w-md">
-                      <p className={`text-sm ${selectedCustomer.address ? 'text-slate-600' : 'text-slate-400 italic'}`}>
-                        {selectedCustomer.address ? `📍 ${selectedCustomer.address}` : 'No address saved.'}
-                      </p>
+                      <button 
+                        onClick={() => handleSendWhatsApp(customer)}
+                        className="bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1 transition-colors"
+                      >
+                        <span>💬 Message</span>
+                      </button>
                     </div>
-                    <button onClick={() => setEditingCustomerObj(selectedCustomer)} className="text-blue-600 bg-white text-xs font-bold py-1.5 px-3 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors mt-2">
-                      ✏️ Edit Profile & Color
-                    </button>
                   </div>
-                </div>
-                
-                <div className="bg-white border-2 border-slate-200 p-4 rounded-xl text-center shadow-sm min-w-[160px] w-full md:w-auto shrink-0 relative overflow-hidden">
-                  {selectedCustomer.creditDue > 0 && (
-                    <div className={`absolute top-0 left-0 w-full h-1.5 ${getCustomerStatus(selectedCustomer).bg.replace('50', '400')}`}></div>
-                  )}
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-1">Total Credit Due</p>
-                  <p className={`text-2xl font-bold ${selectedCustomer.creditDue > 0 ? getCustomerStatus(selectedCustomer).text : 'text-emerald-500'}`}>
-                    ₹{selectedCustomer.creditDue.toFixed(2)}
-                  </p>
-                </div>
-
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div ref={listRef} className="flex w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex-col h-[55vh] md:h-full overflow-hidden shrink-0 mt-12 md:mt-0">
+            <div className="flex justify-between items-center mb-4 shrink-0">
+              <h2 className={`text-2xl font-bold text-slate-800 ${isSidebarHidden ? 'ml-12 md:ml-12' : ''}`}>Customers</h2>
+              <button 
+                onClick={() => setIsFullPageView(true)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap"
+              >
+                🔍 View All
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 mb-4 shrink-0">
+              <div className="relative flex-1 min-w-[150px]">
+                <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Search name or village..." 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)} 
+                  className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm" 
+                />
               </div>
+              
+              <select 
+                value={villageFilter}
+                onChange={(e) => setVillageFilter(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-600 font-bold px-3 py-2 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[100px]"
+              >
+                <option value="all">🌍 All Villages</option>
+                {uniqueVillages.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
 
-              {/* Action Bar: Settle Credit & Send WhatsApp */}
-              <div className="mt-6 p-4 bg-white border border-slate-200 rounded-xl flex flex-col lg:flex-row gap-4 justify-between items-center shadow-sm">
-                {selectedCustomer.creditDue > 0 && (
-                  <form onSubmit={handleSettleCredit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto items-center">
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="Amount to pay..." 
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-36 bg-slate-50 text-sm font-bold"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Note (e.g. PhonePe / Cash)" 
-                      value={paymentNote}
-                      onChange={(e) => setPaymentNote(e.target.value)}
-                      className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48 bg-slate-50 text-sm"
-                    />
-                    <button type="submit" className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-lg transition-colors shadow-sm whitespace-nowrap shrink-0">
-                      💵 Receive
-                    </button>
-                  </form>
-                )}
-                
-                <button onClick={handleSendWhatsApp} className="w-full lg:w-auto bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm shrink-0">
-                  <span>💬 Send Reminder</span>
+              {currentUser?.role === 'admin' && (
+                <button 
+                  onClick={() => {
+                    setShowCreditOnly(!showCreditOnly);
+                    setCreditColorFilter('all'); 
+                  }}
+                  className={`font-bold px-3 py-2 rounded-xl transition-colors shadow-sm whitespace-nowrap text-sm border flex items-center ${showCreditOnly ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                  title="View customers with pending credit"
+                >
+                  {showCreditOnly ? '👥 View All' : '💳 Credit Only'}
+                </button>
+              )}
+
+              <button 
+                onClick={() => setShowAddCustomerModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl transition-colors whitespace-nowrap shadow-sm"
+              >
+                + Add
+              </button>
+            </div>
+
+            {/* Credit Color Sub-Filter Row */}
+            {showCreditOnly && (
+              <div className="flex gap-2 mb-4 overflow-x-auto shrink-0 pb-1 custom-scrollbar">
+                <button 
+                  onClick={() => setCreditColorFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'all' ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                  All Credit
+                </button>
+                <button 
+                  onClick={() => setCreditColorFilter('emerald')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'emerald' ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
+                >
+                  🟢 <span className="hidden sm:inline">Green</span> (≤ 1M)
+                </button>
+                <button 
+                  onClick={() => setCreditColorFilter('yellow')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'yellow' ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'}`}
+                >
+                  🟡 <span className="hidden sm:inline">Yellow</span> (1-6M)
+                </button>
+                <button 
+                  onClick={() => setCreditColorFilter('red')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${creditColorFilter === 'red' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}
+                >
+                  🔴 <span className="hidden sm:inline">Red</span> (&gt; 6M)
                 </button>
               </div>
+            )}
 
-              {/* Manual Credit (Udhaar) Entry Section */}
-              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl shadow-sm">
-                <h3 className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-3">➕ Add Manual Credit (Udhaar Entry)</h3>
-                <form onSubmit={handleManualCreditSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                  <div className="sm:col-span-3">
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="Amount (₹) *" 
-                      value={manualCreditAmount}
-                      onChange={(e) => setManualCreditAmount(e.target.value)}
-                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-orange-900"
-                      required
-                    />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <input 
-                      type="date" 
-                      value={manualCreditDate}
-                      onChange={(e) => setManualCreditDate(e.target.value)}
-                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-slate-700"
-                      required
-                    />
-                  </div>
-                  <div className="sm:col-span-4">
-                    <input 
-                      type="text" 
-                      placeholder="Note (e.g. 2 Shirts, 1 Pant)" 
-                      value={manualCreditNote}
-                      onChange={(e) => setManualCreditNote(e.target.value)}
-                      className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm text-slate-700"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold p-2.5 rounded-lg transition-colors shadow-sm text-sm whitespace-nowrap">
-                      Add Credit
-                    </button>
-                  </div>
-                </form>
+            {/* Total Dynamic Credit Banner */}
+            {totalFilteredCredit > 0 && (
+              <div className="bg-slate-800 rounded-xl p-3 mb-4 flex justify-between items-center shrink-0 shadow-sm transition-all">
+                <span className="text-slate-300 font-semibold text-[11px] uppercase tracking-widest">
+                  Total Outstanding
+                </span>
+                <span className="text-white font-bold text-lg">
+                  ₹{totalFilteredCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </div>
+            )}
 
-            </div>
-
-            <div className="p-4 md:p-6 flex-1 overflow-y-auto space-y-8 min-h-[300px] custom-scrollbar">
-              
-              {/* Manual Credit History */}
-              {selectedCustomer.creditHistory && selectedCustomer.creditHistory.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Manual Credit Logs</h3>
-                  <div className="space-y-3">
-                    {selectedCustomer.creditHistory.map(credit => (
-                      <div key={credit.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-orange-700">📦 Credit Added</span>
-                            <span className="text-xs bg-white border border-orange-200 text-orange-800 px-2 py-0.5 rounded-md font-semibold">{credit.date}</span>
-                          </div>
-                          <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {credit.note || 'No description provided'}</p>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                          <span className="font-bold text-orange-700 text-lg">+ ₹{credit.amount.toFixed(2)}</span>
-                          <button 
-                            onClick={() => openEditCredit(credit)} 
-                            className="bg-white border border-orange-200 text-orange-600 hover:bg-orange-600 hover:text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold shrink-0"
-                          >
-                            ✏️ Edit
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Received Payments History */}
-              {selectedCustomer.paymentHistory && selectedCustomer.paymentHistory.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Received Payments</h3>
-                  <div className="space-y-3">
-                    {selectedCustomer.paymentHistory.map(payment => (
-                      <div key={payment.id} className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-emerald-700">💰 Payment Logged</span>
-                            <span className="text-xs bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md font-semibold">{payment.date}</span>
-                          </div>
-                          <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {payment.note || 'Cash Payment'}</p>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                          <span className="font-bold text-emerald-700 text-lg">+ ₹{payment.amount.toFixed(2)}</span>
-                          <button 
-                            onClick={() => openEditPayment(payment)} 
-                            className="bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold shrink-0"
-                          >
-                            ✏️ Edit
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Purchase History */}
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Recent Purchase History</h3>
-                {customerBills.length === 0 ? (
-                  <p className="text-slate-400 text-sm">No recorded system purchases.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {customerBills.map(bill => (
-                      <div 
-                        key={bill.id} 
-                        onClick={() => setViewingBill(bill)}
-                        className="bg-white border border-slate-200 p-4 rounded-xl hover:shadow-md hover:border-blue-400 cursor-pointer transition-all group"
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <div>
-                            <span className="font-bold text-blue-600 mr-3 group-hover:underline">#{bill.id}</span>
-                            <span className="text-sm text-slate-500 block sm:inline">{bill.date}</span>
-                          </div>
-                          <span className="font-bold text-slate-800 text-lg">₹{bill.total.toFixed(2)}</span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wide ${
-                            bill.paymentMethod === 'Cash' ? 'bg-emerald-100 text-emerald-700' :
-                            bill.paymentMethod === 'Credit' ? 'bg-orange-100 text-orange-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            Paid via {bill.paymentMethod}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {filteredCustomers.length === 0 ? (
+                <p className="text-center text-slate-400 mt-10">No customers found.</p>
+              ) : (
+                filteredCustomers.map(customer => {
+                  const status = getCustomerStatus(customer);
+                  const isSelected = selectedCustomer?.id === customer.id;
+                  
+                  return (
+                    <div 
+                      key={customer.id} 
+                      onClick={() => handleSelectCustomer(customer)}
+                      className={`p-4 rounded-xl border-l-[6px] border border-slate-200 cursor-pointer transition-all ${isSelected ? 'shadow-md ' + status.bg : 'bg-white hover:shadow-sm'} ${status.border}`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <h3 className="font-bold text-slate-800 truncate pr-2">{customer.name}</h3>
+                        {customer.creditDue > 0 && (
+                          <span className={`${status.badgeBg} ${status.text} text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0`}>
+                            Due: ₹{customer.creditDue.toFixed(2)}
                           </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400 hidden sm:block">{bill.items.length} item(s) purchased</span>
-                            <span className="text-blue-500 font-bold opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity text-xs">View Details ➔</span>
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
+                      <div className="flex justify-between text-xs text-slate-500">
+                        <span>📞 {customer.phone || 'N/A'}</span>
+                        <span className="font-medium text-slate-700">Spent: ₹{customer.totalSpent?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      {customer.village && (
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                          🌍 {customer.village}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
-        )}
-      </div>
+
+          <div ref={detailsRef} className="flex w-full md:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200 flex-col min-h-[60vh] md:h-full overflow-hidden shrink-0 mt-2 md:mt-0">
+            {!selectedCustomer ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
+                <span className="text-6xl mb-4">👤</span>
+                <p className="text-lg font-medium">Select a customer to view details</p>
+              </div>
+            ) : (
+              <div className="flex flex-col h-full overflow-hidden">
+                
+                <div className={`p-4 md:p-6 border-b shrink-0 ${getCustomerStatus(selectedCustomer).bg} border-slate-200 transition-colors`}>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    
+                    <div className="flex-1 min-w-0 w-full">
+                      <div className="flex justify-between items-start w-full">
+                        <h2 className="text-3xl font-bold text-slate-800 truncate pr-2">{selectedCustomer.name}</h2>
+                        {currentUser?.role === 'admin' && (
+                          <button 
+                            onClick={handleDeleteCustomer} 
+                            className="text-xs font-bold text-red-400 hover:text-white border border-red-200 hover:bg-red-500 py-1.5 px-3 rounded-lg transition-colors shrink-0 bg-white"
+                          >
+                            Delete Profile
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-slate-500 mt-1 font-mono text-sm">📞 {selectedCustomer.phone}</p>
+                      <p className="text-xs text-slate-400 mt-1">Last Visit: {selectedCustomer.lastVisit}</p>
+                      
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">
+                        🌍 {selectedCustomer.village || 'No Village/Town Saved'}
+                      </p>
+
+                      <div className="mt-3">
+                        <div className="group flex items-start gap-2 max-w-md">
+                          <p className={`text-sm ${selectedCustomer.address ? 'text-slate-600' : 'text-slate-400 italic'}`}>
+                            {selectedCustomer.address ? `📍 ${selectedCustomer.address}` : 'No address saved.'}
+                          </p>
+                        </div>
+                        <button onClick={() => setEditingCustomerObj(selectedCustomer)} className="text-blue-600 bg-white text-xs font-bold py-1.5 px-3 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors mt-2">
+                          ✏️ Edit Profile & Color
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white border-2 border-slate-200 p-4 rounded-xl text-center shadow-sm min-w-[160px] w-full md:w-auto shrink-0 relative overflow-hidden">
+                      {selectedCustomer.creditDue > 0 && (
+                        <div className={`absolute top-0 left-0 w-full h-1.5 ${getCustomerStatus(selectedCustomer).bg.replace('50', '400')}`}></div>
+                      )}
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-1">Total Credit Due</p>
+                      <p className={`text-2xl font-bold ${selectedCustomer.creditDue > 0 ? getCustomerStatus(selectedCustomer).text : 'text-emerald-500'}`}>
+                        ₹{selectedCustomer.creditDue.toFixed(2)}
+                      </p>
+                    </div>
+
+                  </div>
+
+                  {/* Action Bar: Settle Credit & Send WhatsApp */}
+                  <div className="mt-6 p-4 bg-white border border-slate-200 rounded-xl flex flex-col lg:flex-row gap-4 justify-between items-center shadow-sm">
+                    {selectedCustomer.creditDue > 0 && (
+                      <form onSubmit={handleSettleCredit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto items-center">
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="Amount to pay..." 
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-36 bg-slate-50 text-sm font-bold"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Note (e.g. PhonePe / Cash)" 
+                          value={paymentNote}
+                          onChange={(e) => setPaymentNote(e.target.value)}
+                          className="p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48 bg-slate-50 text-sm"
+                        />
+                        <button type="submit" className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-lg transition-colors shadow-sm whitespace-nowrap shrink-0">
+                          💵 Receive
+                        </button>
+                      </form>
+                    )}
+                    
+                    <button onClick={() => handleSendWhatsApp(selectedCustomer)} className="w-full lg:w-auto bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm shrink-0">
+                      <span>💬 Send Reminder</span>
+                    </button>
+                  </div>
+
+                  {/* Manual Credit (Udhaar) Entry Section */}
+                  <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl shadow-sm">
+                    <h3 className="text-xs font-bold text-orange-800 uppercase tracking-wider mb-3">➕ Add Manual Credit (Udhaar Entry)</h3>
+                    <form onSubmit={handleManualCreditSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <div className="sm:col-span-3">
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="Amount (₹) *" 
+                          value={manualCreditAmount}
+                          onChange={(e) => setManualCreditAmount(e.target.value)}
+                          className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-orange-900"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <input 
+                          type="date" 
+                          value={manualCreditDate}
+                          onChange={(e) => setManualCreditDate(e.target.value)}
+                          className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm font-bold text-slate-700"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-4">
+                        <input 
+                          type="text" 
+                          placeholder="Note (e.g. 2 Shirts, 1 Pant)" 
+                          value={manualCreditNote}
+                          onChange={(e) => setManualCreditNote(e.target.value)}
+                          className="w-full p-2.5 border border-orange-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm text-slate-700"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold p-2.5 rounded-lg transition-colors shadow-sm text-sm whitespace-nowrap">
+                          Add Credit
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                </div>
+
+                <div className="p-4 md:p-6 flex-1 overflow-y-auto space-y-8 min-h-[300px] custom-scrollbar">
+                  
+                  {/* Manual Credit History */}
+                  {selectedCustomer.creditHistory && selectedCustomer.creditHistory.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Manual Credit Logs</h3>
+                      <div className="space-y-3">
+                        {selectedCustomer.creditHistory.map(credit => (
+                          <div key={credit.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-orange-700">📦 Credit Added</span>
+                                <span className="text-xs bg-white border border-orange-200 text-orange-800 px-2 py-0.5 rounded-md font-semibold">{credit.date}</span>
+                              </div>
+                              <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {credit.note || 'No description provided'}</p>
+                            </div>
+                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                              <span className="font-bold text-orange-700 text-lg">+ ₹{credit.amount.toFixed(2)}</span>
+                              <button 
+                                onClick={() => openEditCredit(credit)} 
+                                className="bg-white border border-orange-200 text-orange-600 hover:bg-orange-600 hover:text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold shrink-0"
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Received Payments History */}
+                  {selectedCustomer.paymentHistory && selectedCustomer.paymentHistory.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Received Payments</h3>
+                      <div className="space-y-3">
+                        {selectedCustomer.paymentHistory.map(payment => (
+                          <div key={payment.id} className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 hover:shadow-sm transition-shadow">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-emerald-700">💰 Payment Logged</span>
+                                <span className="text-xs bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md font-semibold">{payment.date}</span>
+                              </div>
+                              <p className="text-sm text-slate-700 mt-1"><strong>Note:</strong> {payment.note || 'Cash Payment'}</p>
+                            </div>
+                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                              <span className="font-bold text-emerald-700 text-lg">+ ₹{payment.amount.toFixed(2)}</span>
+                              <button 
+                                onClick={() => openEditPayment(payment)} 
+                                className="bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold shrink-0"
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Purchase History */}
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Recent Purchase History</h3>
+                    {customerBills.length === 0 ? (
+                      <p className="text-slate-400 text-sm">No recorded system purchases.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {customerBills.map(bill => (
+                          <div 
+                            key={bill.id} 
+                            onClick={() => setViewingBill(bill)}
+                            className="bg-white border border-slate-200 p-4 rounded-xl hover:shadow-md hover:border-blue-400 cursor-pointer transition-all group"
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <div>
+                                <span className="font-bold text-blue-600 mr-3 group-hover:underline">#{bill.id}</span>
+                                <span className="text-sm text-slate-500 block sm:inline">{bill.date}</span>
+                              </div>
+                              <span className="font-bold text-slate-800 text-lg">₹{bill.total.toFixed(2)}</span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
+                              <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wide ${
+                                bill.paymentMethod === 'Cash' ? 'bg-emerald-100 text-emerald-700' :
+                                bill.paymentMethod === 'Credit' ? 'bg-orange-100 text-orange-700' :
+                                'bg-blue-100 text-blue-700'
+                              }`}>
+                                Paid via {bill.paymentMethod}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 hidden sm:block">{bill.items.length} item(s) purchased</span>
+                                <span className="text-blue-500 font-bold opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity text-xs">View Details ➔</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
       
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
