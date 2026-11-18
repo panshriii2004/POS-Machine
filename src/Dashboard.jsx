@@ -105,6 +105,7 @@ export default function Dashboard({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [editItemModal, setEditItemModal] = useState(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [showProducts, setShowProducts] = useState(true);
 
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
   const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
@@ -120,6 +121,7 @@ export default function Dashboard({
   const doneBtnRef = useRef(null);
 
   const activeCart = carts.find(c => c.id === activeCartId) || carts[0];
+  const currentInvoiceId = activeCart?.invoiceId || activeCart?.id?.toString()?.slice(-6) || Math.floor(100000 + Math.random() * 900000).toString();
   
   const updateCart = (key, value) => {
     setCarts(prevCarts => {
@@ -128,7 +130,6 @@ export default function Dashboard({
     });
   };
 
-  // --- SMART DELTA STOCK CALCULATOR FIX ---
   const getOriginalBill = (cart) => {
     if (!cart) return null;
     return billHistory.find(b => 
@@ -147,7 +148,6 @@ export default function Dashboard({
       const currentQty = itemInCart ? itemInCart.quantity : 0;
       
       if (originalBill) {
-        // Only reserve the EXTRA items added beyond the original bill
         const originalItem = originalBill.items.find(i => i.id === productId);
         const originalQty = originalItem ? originalItem.quantity : 0;
         reservedInCarts += (currentQty - originalQty);
@@ -164,7 +164,10 @@ export default function Dashboard({
   const safeGstRate = Number(activeCart.gstPercent) || 0;
   const discountAmount = subtotal * (safeDiscountRate / 100);
   const discountedSubtotal = subtotal - discountAmount;
-  const gstAmount = discountedSubtotal * (safeGstRate / 100);
+  
+  // GST applied directly on subtotal amount
+  const gstAmount = subtotal * (safeGstRate / 100);
+  
   const total = discountedSubtotal + gstAmount;
   const totalSavings = (totalMrp - subtotal) + discountAmount;
   const totalQty = activeCart.invoice.reduce((sum, item) => sum + item.quantity, 0);
@@ -181,7 +184,7 @@ export default function Dashboard({
   
   const handlePrintReceiptDialog = useReactToPrint({ 
     contentRef: receiptRef, 
-    documentTitle: 'Customer_Receipt',
+    documentTitle: `Receipt_${currentInvoiceId}`,
     pageStyle: `@page { size: ${receiptPaperWidth} 297mm; margin: 0; }`,
     onAfterPrint: () => handleCompleteSale()
   });
@@ -255,7 +258,7 @@ export default function Dashboard({
 
       let bodyText = "";
       const dateStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true });
-      bodyText += formatLineLR(dateStr, `Invoice : ${Date.now().toString().slice(-6)}`);
+      bodyText += formatLineLR(dateStr, `Invoice : #${currentInvoiceId}`);
       bodyText += dashedDivider;
 
       if (receiptConfig?.showCustomerDetails && activeCart.customerName.trim()) {
@@ -355,7 +358,7 @@ export default function Dashboard({
     try {
       const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
       canvas.toBlob(async (blob) => {
-        const file = new File([blob], `Receipt.png`, { type: 'image/png' });
+        const file = new File([blob], `Receipt_${currentInvoiceId}.png`, { type: 'image/png' });
         
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
@@ -551,7 +554,7 @@ export default function Dashboard({
 
   const addNewCart = () => {
     const newCartId = Date.now();
-    const newCart = { id: newCartId, title: `Cart ${carts.length + 1}`, invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' };
+    const newCart = { id: newCartId, invoiceId: newCartId.toString().slice(-6), title: `Cart ${carts.length + 1}`, invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' };
     setCarts([...carts, newCart]);
     setActiveCartId(newCartId);
   };
@@ -562,7 +565,7 @@ export default function Dashboard({
     
     if (carts.length === 1) {
       const newCartId = Date.now();
-      setCarts([{ id: newCartId, title: 'Cart 1', invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' }]);
+      setCarts([{ id: newCartId, invoiceId: newCartId.toString().slice(-6), title: 'Cart 1', invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' }]);
       setActiveCartId(newCartId);
     } else {
       const remainingCarts = carts.filter(c => c.id !== idToClose);
@@ -605,7 +608,7 @@ export default function Dashboard({
     const originalBill = getOriginalBill(activeCart);
 
     const newBill = {
-      id: originalBill ? originalBill.id : Date.now().toString().slice(-6), 
+      id: originalBill ? originalBill.id : currentInvoiceId, 
       date: originalBill ? originalBill.date : new Date().toLocaleString(),
       cashierName: currentUser?.name || 'Admin', cashierId: currentUser?.id || 'admin',
       customerName: activeCart.customerName.trim() || 'Walk-in Customer', customerPhone: activeCart.customerPhone || 'N/A',
@@ -715,7 +718,7 @@ export default function Dashboard({
 
     if (carts.length === 1) {
       const newCartId = Date.now();
-      setCarts([{ id: newCartId, title: 'Cart 1', invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' }]);
+      setCarts([{ id: newCartId, invoiceId: newCartId.toString().slice(-6), title: 'Cart 1', invoice: [], customerName: '', customerPhone: '', discountPercent: '', gstPercent: '', paymentMethod: 'Cash' }]);
       setActiveCartId(newCartId);
     } else {
       const remainingCarts = carts.filter(c => c.id !== activeCartId);
@@ -860,7 +863,7 @@ export default function Dashboard({
                 
                 <div className="flex justify-between text-slate-800 mb-1" style={{ fontSize: receiptTextSize }}>
                   <span>{new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit', hour12: true })}</span>
-                  <span>Invoice : {Date.now().toString().slice(-5)}</span>
+                  <span>Invoice : #{currentInvoiceId}</span>
                 </div>
                 
                 <div className="border-b border-dashed border-black mb-2"></div>
@@ -982,7 +985,7 @@ export default function Dashboard({
           </div>
         )}
 
-        <div className="w-full lg:w-7/12 xl:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col min-h-[50vh] lg:h-full shrink-0 lg:shrink">
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col shrink-0 lg:shrink transition-all ${showProducts ? 'w-full lg:w-7/12 xl:w-2/3 min-h-[50vh] lg:h-full' : 'w-full lg:w-auto'}`}>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 shrink-0">
             <h2 className="text-2xl font-bold text-slate-800 hidden md:block">Products</h2>
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -1005,55 +1008,81 @@ export default function Dashboard({
             </div>
           </div>
           
-          <div className="relative mb-4 shrink-0">
+          <div className="relative mb-3 shrink-0">
             <input type="text" className="w-full p-3 md:p-4 pl-4 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" placeholder="Search products by name..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
-          {filteredProducts.length === 0 && search && (
-            <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-3">
-              <span className="text-blue-800 text-center sm:text-left">No product found for "<strong>{search}</strong>"</span>
-              <button onClick={createNewProduct} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition w-full sm:w-auto">+ Create & Add</button>
+          <div className="mb-4 shrink-0 flex items-center justify-between bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Product List View</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 font-medium">
+                {showProducts ? `${filteredProducts.length} items` : 'Hidden'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowProducts(!showProducts)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  showProducts ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    showProducts ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto pr-1 pb-4 flex-1">
-            {filteredProducts.map((product) => {
-              const availableStock = getAvailableStock(product.id, product.stock);
-              
-              let cardBg = "bg-white border-slate-200 hover:border-blue-500";
-              if (availableStock <= 0) cardBg = "bg-red-100 border-red-300 opacity-70 cursor-not-allowed";
-              else if (availableStock <= 5) cardBg = "bg-yellow-100 border-yellow-400 hover:border-yellow-500";
-
-              return (
-                <div 
-                  key={product.id} 
-                  onClick={() => addToInvoice(product)} 
-                  className={`p-3 border rounded-xl shadow-sm transition-all group flex flex-col justify-between ${cardBg}`}
-                >
-                  <div>
-                    <h3 className={`font-semibold text-sm md:text-base line-clamp-2 leading-tight ${availableStock <= 0 ? 'text-red-700' : 'text-slate-800 group-hover:text-blue-600'}`}>
-                      {product.name}
-                    </h3>
-                    <div className="flex flex-col xl:flex-row xl:justify-between xl:items-center mt-2 gap-1">
-                      <span className="text-base font-bold text-slate-900">Rs {product.price.toFixed(2)}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-max
-                        ${availableStock <= 0 ? 'bg-red-600 text-white' : 
-                          availableStock <= 5 ? 'bg-yellow-600 text-white' : 
-                          'bg-slate-100 text-slate-500'}`}>
-                        Stock: {availableStock}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex justify-center bg-white p-1 rounded border border-slate-100 mt-3 opacity-70 group-hover:opacity-100 transition-opacity">
-                    <Barcode value={product.barcode} height={20} width={1.2} fontSize={10} background="transparent" margin={0} />
-                  </div>
-                </div>
-              );
-            })}
           </div>
+
+          {showProducts && (
+            <>
+              {filteredProducts.length === 0 && search && (
+                <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-3">
+                  <span className="text-blue-800 text-center sm:text-left">No product found for "<strong>{search}</strong>"</span>
+                  <button onClick={createNewProduct} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition w-full sm:w-auto">+ Create & Add</button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto pr-1 pb-4 flex-1">
+                {filteredProducts.map((product) => {
+                  const availableStock = getAvailableStock(product.id, product.stock);
+                  
+                  let cardBg = "bg-white border-slate-200 hover:border-blue-500";
+                  if (availableStock <= 0) cardBg = "bg-red-100 border-red-300 opacity-70 cursor-not-allowed";
+                  else if (availableStock <= 5) cardBg = "bg-yellow-100 border-yellow-400 hover:border-yellow-500";
+
+                  return (
+                    <div 
+                      key={product.id} 
+                      onClick={() => addToInvoice(product)} 
+                      className={`p-3 border rounded-xl shadow-sm transition-all group flex flex-col justify-between ${cardBg}`}
+                    >
+                      <div>
+                        <h3 className={`font-semibold text-sm md:text-base line-clamp-2 leading-tight ${availableStock <= 0 ? 'text-red-700' : 'text-slate-800 group-hover:text-blue-600'}`}>
+                          {product.name}
+                        </h3>
+                        <div className="flex flex-col xl:flex-row xl:justify-between xl:items-center mt-2 gap-1">
+                          <span className="text-base font-bold text-slate-900">Rs {product.price.toFixed(2)}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-max
+                            ${availableStock <= 0 ? 'bg-red-600 text-white' : 
+                              availableStock <= 5 ? 'bg-yellow-600 text-white' : 
+                              'bg-slate-100 text-slate-500'}`}>
+                            Stock: {availableStock}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex justify-center bg-white p-1 rounded border border-slate-100 mt-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <Barcode value={product.barcode} height={20} width={1.2} fontSize={10} background="transparent" margin={0} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="w-full lg:w-5/12 xl:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col flex-1 lg:h-full shrink-0 lg:shrink">
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col flex-1 lg:h-full shrink-0 lg:shrink`}>
           
           <div className="flex-grow overflow-y-auto pr-1 mb-4 space-y-3">
             {activeCart.invoice.length === 0 ? (
