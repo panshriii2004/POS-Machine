@@ -1,5 +1,41 @@
 import React, { useState, useRef } from 'react';
 
+// Helper to resize & compress images/DataURLs to ~15-25KB so Supabase DB sync never times out
+const compressImageSource = (src, maxSize = 250, quality = 0.75) => {
+  return new Promise((resolve) => {
+    if (!src || !src.startsWith('data:image')) {
+      resolve(src);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+
+      if (width > height) {
+        if (width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        }
+      } else if (height > maxSize) {
+        width = Math.round((width * maxSize) / height);
+        height = maxSize;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+};
+
 export default function Staff({ staffList, setStaffList, isSidebarHidden, showSidebar }) {
   const [search, setSearch] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState(null);
@@ -25,9 +61,7 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
   const fileInputRef = useRef(null);
   const rightPanelRef = useRef(null);
 
-  // Track touch start X coordinate for swipe gestures
   const touchStartXRef = useRef(0);
-  // Track last tap time for mobile double-tap detection
   const lastTapTimeRef = useRef(0);
 
   const selectedStaff = staffList.find(s => s.id === selectedStaffId);
@@ -50,20 +84,51 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 1048576) return alert("Image is too large! Please choose a file smaller than 1MB.");
-      const reader = new FileReader();
-      reader.onloadend = () => setPhoto(reader.result);
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const compressed = await compressImageSource(reader.result, 250, 0.75);
+      setPhoto(compressed);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = (e) => {
+    e.stopPropagation();
+    setPhoto(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    // Automatically remove the photo from staffList so Supabase syncs the deletion immediately
+    if (isEditingStaff && selectedStaffId) {
+      const updatedList = staffList.map(s =>
+        s.id === selectedStaffId ? { ...s, photo: null } : s
+      );
+      setStaffList(updatedList);
     }
   };
 
-  const handleSaveStaff = (e) => {
+  const handleSaveStaff = async (e) => {
     e.preventDefault();
+
+    // Compress any legacy >100KB Base64 photos in staffList so total Supabase payload stays tiny
+    const optimizedExistingList = await Promise.all(
+      staffList.map(async (s) => {
+        if (s.photo && s.photo.startsWith('data:image') && s.photo.length > 100000) {
+          const shrunk = await compressImageSource(s.photo, 250, 0.75);
+          return { ...s, photo: shrunk };
+        }
+        return s;
+      })
+    );
+
     if (isEditingStaff && selectedStaffId) {
-      const updatedList = staffList.map(s => {
+      const updatedList = optimizedExistingList.map(s => {
         if (s.id === selectedStaffId) {
-          return { ...s, name, jobTitle, phone, photo: photo || s.photo };
+          return { ...s, name, jobTitle, phone, photo: photo };
         }
         return s;
       });
@@ -80,7 +145,7 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
         ledgerBalance: 0, 
         ledgerHistory: []
       };
-      setStaffList([...staffList, newStaff]);
+      setStaffList([...optimizedExistingList, newStaff]);
     }
     setName(''); setJobTitle(''); setPhone(''); setPhoto(null);
     setShowAddForm(false);
@@ -104,7 +169,6 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
     }
   };
 
-  // 🔥 Fixed: Now accepts an optional targetDate (defaults to todayDate for gestures)
   const quickMarkAttendance = (staffId, status, noteText = '', targetDate = todayDate) => {
     const updatedStaff = staffList.map(s => {
       if (s.id === staffId) {
@@ -126,12 +190,10 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
     if ((status === 'Absent' || status === 'Half Day') && !attendanceNote.trim()) {
       if (!window.confirm(`You haven't added a reason/note for marking them ${status}. Continue anyway?`)) return;
     }
-    // Pass the selected attendanceDate here
     quickMarkAttendance(selectedStaff.id, status, attendanceNote.trim(), attendanceDate);
     setAttendanceNote('');
   };
 
-  // 🔥 Gesture Handlers for List Cards (Always applies to todayDate)
   const handleTouchStart = (e) => {
     touchStartXRef.current = e.touches[0].clientX;
   };
@@ -140,19 +202,14 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchEndX - touchStartXRef.current;
 
-    // Swipe threshold (50px)
     if (diff < -50) {
-      // Swipe Left -> Present (Today)
       quickMarkAttendance(staffId, 'Present', 'Swiped Left (Present)', todayDate);
     } else if (diff > 50) {
-      // Swipe Right -> Absent (Today)
       quickMarkAttendance(staffId, 'Absent', 'Swiped Right (Absent)', todayDate);
     } else {
-      // Tap / Double Tap detection for mobile
       const currentTime = new Date().getTime();
       const tapLength = currentTime - lastTapTimeRef.current;
       if (tapLength < 300 && tapLength > 0) {
-        // Double tap -> Half Day (Today)
         quickMarkAttendance(staffId, 'Half Day', 'Double Tapped (Half Day)', todayDate);
         e.stopPropagation();
       }
@@ -416,12 +473,24 @@ export default function Staff({ staffList, setStaffList, isSidebarHidden, showSi
 
             <form onSubmit={handleSaveStaff} className="space-y-5 max-w-lg">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center relative cursor-pointer hover:bg-slate-200 transition-colors" onClick={() => fileInputRef.current.click()}>
-                  {photo ? <img src={photo} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-2xl">📷</span>}
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center relative cursor-pointer hover:bg-slate-200 transition-colors" onClick={() => fileInputRef.current.click()}>
+                    {photo ? <img src={photo} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-2xl">📷</span>}
+                  </div>
+                  {photo && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      title="Remove Photo"
+                      className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md border-2 border-white transition-transform hover:scale-110 z-10"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
                 <div>
                   <button type="button" onClick={() => fileInputRef.current.click()} className="text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1.5 px-3 rounded-lg transition-colors">Upload Photo</button>
-                  <p className="text-xs text-slate-400 mt-1">Max size: 1MB</p>
+                  <p className="text-xs text-slate-400 mt-1">Auto-optimized for fast cloud sync</p>
                   <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
                 </div>
               </div>
